@@ -1,0 +1,54 @@
+# 金融知识图谱系统配置文件
+database:
+  path: "./data/financial_kg.db"
+  max_connections: 10
+  timeout: 30
+
+cache:
+  max_size: 1000
+  ttl: 3600
+  strategy: "lru"
+
+crawler:
+  timeout: 30
+  max_workers: 5
+  rate_limit: 1.0  # 秒
+  retry_times: 3
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+processor:
+  batch_size: 100
+  max_workers: 3
+  language: "zh-CN"
+
+api_server:
+  host: "0.0.0.0"
+  port: 8000
+  debug: false
+  workers: 1
+
+scheduler:
+  max_concurrent_tasks: 10
+  default_interval: 3600  # 1小时
+
+# 数据源配置
+sources:
+  - name: "sina_finance"
+    url: "https://finance.sina.com.cn"
+    enabled: true
+    category: "财经新闻"
+    frequency: 1800  # 30分钟
+    
+  - name: "east_money"
+    url: "https://www.eastmoney.com"
+    enabled: true
+    category: "投资资讯"
+    frequency: 3600  # 1小时
+
+# 日志配置
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "./logs/financial_kg.log"
+  max_size: "10MB"
+  backup_count: 5
