@@ -5,14 +5,16 @@
 """
 import json
 import logging
+import inspect
 from datetime import datetime
 from typing import List, Optional, Dict, Any, Tuple, Union
-from sqlalchemy import desc, asc, or_, and_, func, text
+from collections.abc import AsyncIterator
+from sqlalchemy import desc, asc, or_, and_, func, text, select
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 
 from .models import Entity, Relation, News, EntityNews, EntityGroup, RelationGroup
-from .connection import get_db_session
+from .connection import get_db_session, db_session
 from ..utils.db_utils import handle_db_errors, handle_db_errors_with_reraise
 
 # 配置日志
@@ -28,16 +30,33 @@ class BaseRepository:
     
     @handle_db_errors(default_return=None)
     async def get(self, id: int) -> Optional[Any]:
-        """根据ID获取单个记录"""
-        return await self.session.query(self.model_class).filter(self.model_class.id == id).first()
+        """
+        根据ID获取单个记录
+        """
+        stmt = select(self.model_class).where(self.model_class.id == id)
+        if self.session and not isinstance(self.session, AsyncIterator):
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
+        else:
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                return result.scalar_one_or_none()
     
     @handle_db_errors(default_return=[])
     async def get_all(self, limit: Optional[int] = None) -> List[Any]:
-        """获取所有记录"""
-        query = self.session.query(self.model_class)
+        """
+        获取所有记录
+        """
+        stmt = select(self.model_class)
         if limit:
-            query = query.limit(limit)
-        return await query.all()
+            stmt = stmt.limit(limit)
+        if self.session and not isinstance(self.session, AsyncIterator) :
+            result = await self.session.execute(stmt)
+            return result.scalars().all()
+        else:
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                return result.scalars().all()
     
     @handle_db_errors_with_reraise()
     async def create(self, **kwargs) -> Any:
@@ -47,9 +66,15 @@ class BaseRepository:
             kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
             
         instance = self.model_class(**kwargs)
-        await self.session.add(instance)
-        await self.session.flush()
-        return instance
+        if self.session and not isinstance(self.session, AsyncIterator):
+            self.session.add(instance)
+            await self.session.flush()
+            return instance
+        else:
+            async with db_session() as session:
+                session.add(instance)
+                await session.flush()
+                return instance
     
     @handle_db_errors_with_reraise()
     async def update(self, id: int, **kwargs) -> Optional[Any]:
@@ -75,6 +100,57 @@ class BaseRepository:
             return True
         return False
     
+    @handle_db_errors_with_reraise()
+    async def get_or_create(self, **kwargs) -> Tuple[Any, bool]:
+        """
+        查询或创建实体
+        
+        Args:
+            **kwargs: 查询参数
+        
+        Returns:
+            Tuple[Any, bool]: (实体, 是否创建)
+        """
+        # 处理properties字段，如果是字典则转换为JSON字符串
+        if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
+            kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+
+        # 构建查询条件
+        filters = []
+        for key, value in kwargs.items():
+            if hasattr(self.model_class, key):
+                filters.append(getattr(self.model_class, key) == value)
+        
+        stmt = select(self.model_class).filter(*filters)
+        
+        if self.session and not isinstance(self.session, AsyncIterator):
+            # 使用提供的会话
+            result = await self.session.execute(stmt)
+            existing_instance = result.scalar_one_or_none()
+            
+            if existing_instance:
+                return existing_instance, False
+            
+            # 创建新实体
+            new_instance = self.model_class(**kwargs)
+            self.session.add(new_instance)
+            await self.session.flush()
+            return new_instance, True
+        else:
+            # 创建新会话
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                existing_instance = result.scalar_one_or_none()
+                
+                if existing_instance:
+                    return existing_instance, False
+                
+                # 创建新实体
+                new_instance = self.model_class(**kwargs)
+                session.add(new_instance)
+                await session.flush()
+                return new_instance, True
+
     @handle_db_errors(default_return=[])
     def find_by(self, **kwargs) -> List[Any]:
         """根据条件查找记录"""
@@ -139,11 +215,14 @@ class EntityRepository(BaseRepository):
         return query.all()
     
     @handle_db_errors_with_reraise()
-    def get_or_create(self, name: str, entity_type: str, **kwargs) -> Entity:
+    async def get_or_create(self, name: str, entity_type: str, **kwargs) -> Entity:
         """获取或创建实体"""
-        entity = self.session.query(Entity).filter(
+        from sqlalchemy import select
+        stmt = select(Entity).where(
             and_(Entity.name == name, Entity.type == entity_type)
-        ).first()
+        )
+        result = await self.session.execute(stmt)
+        entity = result.scalar_one_or_none()
         
         if not entity:
             # 处理properties字段，如果是字典则转换为JSON字符串
@@ -152,7 +231,7 @@ class EntityRepository(BaseRepository):
             
             entity = Entity(name=name, type=entity_type, **kwargs)
             self.session.add(entity)
-            self.session.flush()
+            await self.session.flush()
             logger.debug(f"创建新实体: {name}, 类型: {entity_type}")
         return entity
 
@@ -316,25 +395,31 @@ class EntityNewsRepository(BaseRepository):
         return query.all()
     
     @handle_db_errors(default_return=None)
-    def find_by_entity_and_news(self, entity_id: int, news_id: int) -> Optional[EntityNews]:
+    async def find_by_entity_and_news(self, entity_id: int, news_id: int) -> Optional[EntityNews]:
         """根据实体ID和新闻ID查找关联"""
-        return self.session.query(EntityNews).filter(
+        stmt = select(EntityNews).filter(
             and_(EntityNews.entity_id == entity_id, EntityNews.news_id == news_id)
-        ).first()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
     
     @handle_db_errors_with_reraise()
-    def get_or_create(self, entity_id: int, news_id: int, **kwargs) -> EntityNews:
+    async def get_or_create(self, entity_id: int, news_id: int, **kwargs) -> EntityNews:
         """获取或创建实体-新闻关联"""
-        entity_news = self.find_by_entity_and_news(entity_id, news_id)
+        entity_news = await self.find_by_entity_and_news(entity_id, news_id)
         
         if not entity_news:
+            # 处理properties字段，如果是字典则转换为JSON字符串
+            if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
+                kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+            
             entity_news = EntityNews(
                 entity_id=entity_id,
                 news_id=news_id,
                 **kwargs
             )
             self.session.add(entity_news)
-            self.session.flush()
+            await self.session.flush()
             logger.debug(f"创建新实体-新闻关联: entity_id={entity_id}, news_id={news_id}")
         
         return entity_news

@@ -90,7 +90,7 @@ class LangChainBaseService(BaseLLMService):
         except Exception as e:
             raise RuntimeError(f"运行LLM链失败: {e}")
     
-    def extract_structured_data(self, system_prompt: str, human_prompt: str, input_data: dict) -> Dict[str, Any]:
+    async def extract_structured_data(self, system_prompt: str, human_prompt: str, input_data: dict) -> Dict[str, Any]:
         """
         提取结构化数据
         
@@ -112,12 +112,12 @@ class LangChainBaseService(BaseLLMService):
         chain = LLMChain(llm=self.llm, prompt=chat_prompt)
         
         # 运行LLM链
-        response = chain.invoke(input_data)
+        response = await chain.ainvoke(input_data)
         
         # 解析JSON结果
         return self.json_parser.parse(response["text"])
-    
-    def generate_response(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+
+    async def generate_response(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
         生成LLM响应
         

@@ -36,7 +36,7 @@ class LLMService:
         
         logger.info("LLM服务初始化完成")
     
-    def extract_entities(self, text: str, entity_types: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def extract_entities(self, text: str, entity_types: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         从文本中抽取实体
         
@@ -50,14 +50,14 @@ class LLMService:
         logger.info(f"开始从文本中抽取实体，文本长度: {len(text)}")
         
         if entity_types:
-            result = self.entity_extraction.extract_entities_by_type(text, entity_types)
+            result = await self.entity_extraction.extract_entities_by_type(text, entity_types)
         else:
-            result = self.entity_extraction.extract_entities(text)
+            result = await self.entity_extraction.extract_entities(text)
             
         logger.info(f"实体抽取完成，共抽取到 {len(result.get('entities', []))} 个实体")
         return result
     
-    def extract_relations(self, text: str, entities: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    async def extract_relations(self, text: str, entities: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         从文本中抽取关系
         
@@ -71,14 +71,14 @@ class LLMService:
         logger.info(f"开始从文本中抽取关系，文本长度: {len(text)}")
         
         if entities:
-            result = self.relation_extraction.extract_relations_with_entities(text, entities)
+            result = await self.relation_extraction.extract_relations_with_entities(text, entities)
         else:
-            result = self.relation_extraction.extract_relations(text)
+            result = await self.relation_extraction.extract_relations(text)
             
         logger.info(f"关系抽取完成，共抽取到 {len(result.get('relations', []))} 个关系")
         return result
     
-    def generate_news_summary(self, text: str, summary_type: str = "standard", **kwargs) -> Dict[str, Any]:
+    async def generate_news_summary(self, text: str, summary_type: str = "standard", **kwargs) -> Dict[str, Any]:
         """
         生成新闻摘要
         
@@ -94,15 +94,15 @@ class LLMService:
         
         if summary_type == "short":
             max_sentences = kwargs.get("max_sentences", 3)
-            result = self.news_summarization.generate_short_summary(text, max_sentences)
+            result = await self.news_summarization.generate_short_summary(text, max_sentences)
         elif summary_type == "topic":
             topic = kwargs.get("topic", "")
-            result = self.news_summarization.generate_topic_summary(text, topic)
+            result = await self.news_summarization.generate_topic_summary(text, topic)
         elif summary_type == "multi_view":
             perspectives = kwargs.get("perspectives", [])
-            result = self.news_summarization.generate_multi_view_summary(text, perspectives)
+            result = await self.news_summarization.generate_multi_view_summary(text, perspectives)
         else:
-            result = self.news_summarization.generate_summary(text)
+            result = await self.news_summarization.generate_summary(text)
             
         logger.info(f"新闻摘要生成完成，摘要类型: {summary_type}")
         return result

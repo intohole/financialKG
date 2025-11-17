@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from typing import Optional, List
 
-from ..database.data_services import KnowledgeGraphService
+from ..services.database.knowledge_graph_service import KnowledgeGraphService
 
 from . import schemas
 

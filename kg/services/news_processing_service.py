@@ -1,18 +1,20 @@
 import logging
+import dateutil.parser
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 from .llm_service import LLMService
+from .data_services import KnowledgeGraphService
 
 class NewsProcessingService:
     """
     新闻处理服务，整合LLM提取和数据存储功能
     """
-    def __init__(self, data_services):
+    def __init__(self, data_services: KnowledgeGraphService):
         """
         初始化新闻处理服务
         
         Args:
-            data_services: 数据服务实例，用于数据库操作
+            data_services: 知识图谱服务实例，用于数据库操作
         """
         self.logger = logging.getLogger(__name__)
         self.data_services = data_services
@@ -34,6 +36,14 @@ class NewsProcessingService:
         publish_date = news_data.get("publish_date", None)
         source = news_data.get("source", "unknown")
         author = news_data.get("author", None)
+
+        # Convert string publish_date to datetime object if needed
+        if publish_date and isinstance(publish_date, str):
+            try:
+                publish_date = dateutil.parser.isoparse(publish_date)
+            except ValueError:
+                self.logger.warning(f"Invalid publish_date format: {publish_date}, using None instead")
+                publish_date = None
         
         self.logger.info(f"开始处理新闻: {title[:20]}...")
         
@@ -51,7 +61,7 @@ class NewsProcessingService:
         relations = relations_result['relations']
         self.logger.info(f"已提取关系: {len(relations)} 个")
         
-        # 4. 使用LLM生成摘要
+        # 4. 生成新闻摘要
         summary_result = await self.llm_service.generate_news_summary(content)
         summary = summary_result['summary']
         self.logger.info(f"已生成新闻摘要")

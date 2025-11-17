@@ -22,11 +22,12 @@ async def test_news_processing():
         
         print("Services initialized successfully.")
         
-        # Test data
+        # Test data with unique URL
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         news_data = {
             "title": "Test News Article",
             "content": "This is a test news article about AI and machine learning technologies.",
-            "source_url": "http://example.com/test-news",
+            "source_url": f"http://example.com/test-news-{timestamp}",
             "publish_date": datetime.fromisoformat("2023-10-01T12:00:00Z"),
             "source": "test_source"
         }

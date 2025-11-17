@@ -5,12 +5,26 @@
 """
 import logging
 import inspect
-from typing import Any, Callable, Optional
+import json
+from typing import Any, Callable, Dict, Optional
 from functools import wraps
 from sqlalchemy.exc import SQLAlchemyError
 
 # 配置日志
 logger = logging.getLogger(__name__)
+
+
+def jsonify_properties(properties: Optional[Dict[str, Any]]) -> Optional[str]:
+    """
+    将属性字典转换为JSON字符串，如果属性为空则返回None
+    
+    Args:
+        properties: 要转换的属性字典
+        
+    Returns:
+        JSON字符串或None
+    """
+    return json.dumps(properties) if properties else None
 
 
 def handle_db_errors(default_return: Any = None, log_error: bool = True):

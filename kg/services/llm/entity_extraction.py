@@ -46,7 +46,7 @@ class EntityExtractionService(LangChainBaseService):
 4. 返回有效的JSON格式
 """
     
-    def extract_entities(self, text: str) -> Dict[str, Any]:
+    async def extract_entities(self, text: str) -> Dict[str, Any]:
         """
         从文本中抽取实体
         
@@ -57,13 +57,13 @@ class EntityExtractionService(LangChainBaseService):
             包含实体列表的字典
         """
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             self.system_prompt,
             self.human_prompt,
             inputs
         )
-    
-    def extract_entities_by_type(self, text: str, entity_types: List[str]) -> Dict[str, Any]:
+
+    async def extract_entities_by_type(self, text: str, entity_types: List[str]) -> Dict[str, Any]:
         """
         按指定类型抽取实体
         
@@ -103,13 +103,13 @@ class EntityExtractionService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             type_specific_prompt,
             human_prompt,
             inputs
         )
-    
-    def extract_entities_with_context(self, text: str, context: Optional[str] = None) -> Dict[str, Any]:
+
+    async def extract_entities_with_context(self, text: str, context: Optional[str] = None) -> Dict[str, Any]:
         """
         带上下文的实体抽取
         
@@ -146,7 +146,7 @@ class EntityExtractionService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             context_prompt,
             human_prompt,
             inputs

@@ -33,8 +33,7 @@ class Entity(EntityBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     class Config:
-        orm_mode = True
-        from_attributes = True  # 兼容Pydantic v2
+        from_attributes = True
 
 
 class RelationBase(BaseModel):
@@ -74,7 +73,6 @@ class Relation(RelationBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -108,7 +106,6 @@ class News(NewsBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -129,7 +126,6 @@ class EntityNews(EntityNewsBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -147,7 +143,6 @@ class EntityGroup(EntityGroupBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 
@@ -164,7 +159,6 @@ class RelationGroup(RelationGroupBase):
     updated_at: datetime = Field(..., description="更新时间")
 
     class Config:
-        orm_mode = True
         from_attributes = True
 
 

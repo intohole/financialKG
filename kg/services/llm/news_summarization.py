@@ -51,7 +51,7 @@ class NewsSummarizationService(LangChainBaseService):
 4. 返回有效的JSON格式
 """
     
-    def generate_summary(self, text: str) -> Dict[str, Any]:
+    async def generate_summary(self, text: str) -> Dict[str, Any]:
         """
         生成新闻摘要
         
@@ -62,13 +62,13 @@ class NewsSummarizationService(LangChainBaseService):
             包含摘要信息的字典
         """
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             self.system_prompt,
             self.human_prompt,
             inputs
         )
-    
-    def generate_short_summary(self, text: str, max_sentences: int = 3) -> Dict[str, Any]:
+
+    async def generate_short_summary(self, text: str, max_sentences: int = 3) -> Dict[str, Any]:
         """
         生成简短摘要
         
@@ -103,13 +103,13 @@ class NewsSummarizationService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             short_prompt,
             human_prompt,
             inputs
         )
-    
-    def generate_topic_summary(self, text: str, topic: str) -> Dict[str, Any]:
+
+    async def generate_topic_summary(self, text: str, topic: str) -> Dict[str, Any]:
         """
         生成特定主题的摘要
         
@@ -155,13 +155,13 @@ class NewsSummarizationService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             topic_prompt,
             human_prompt,
             inputs
         )
-    
-    def generate_multi_view_summary(self, text: str, perspectives: List[str]) -> Dict[str, Any]:
+
+    async def generate_multi_view_summary(self, text: str, perspectives: List[str]) -> Dict[str, Any]:
         """
         生成多角度摘要
         
@@ -212,7 +212,7 @@ class NewsSummarizationService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             multi_view_prompt,
             human_prompt,
             inputs

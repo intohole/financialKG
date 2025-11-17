@@ -48,7 +48,7 @@ class RelationExtractionService(LangChainBaseService):
 5. 返回有效的JSON格式
 """
     
-    def extract_relations(self, text: str) -> Dict[str, Any]:
+    async def extract_relations(self, text: str) -> Dict[str, Any]:
         """
         从文本中抽取关系
         
@@ -59,13 +59,13 @@ class RelationExtractionService(LangChainBaseService):
             包含关系列表的字典
         """
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             self.system_prompt,
             self.human_prompt,
             inputs
         )
-    
-    def extract_relations_with_entities(self, text: str, entities: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+    async def extract_relations_with_entities(self, text: str, entities: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         基于给定实体列表抽取关系
         
@@ -113,13 +113,13 @@ class RelationExtractionService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             entity_specific_prompt,
             human_prompt,
             inputs
         )
-    
-    def extract_relations_by_type(self, text: str, relation_types: List[str]) -> Dict[str, Any]:
+
+    async def extract_relations_by_type(self, text: str, relation_types: List[str]) -> Dict[str, Any]:
         """
         按指定类型抽取关系
         
@@ -162,13 +162,13 @@ class RelationExtractionService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             type_specific_prompt,
             human_prompt,
             inputs
         )
-    
-    def extract_relations_with_context(self, text: str, context: Optional[str] = None) -> Dict[str, Any]:
+
+    async def extract_relations_with_context(self, text: str, context: Optional[str] = None) -> Dict[str, Any]:
         """
         带上下文的关系抽取
         
@@ -206,7 +206,7 @@ class RelationExtractionService(LangChainBaseService):
 """
         
         inputs = {"text": text}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             context_prompt,
             human_prompt,
             inputs

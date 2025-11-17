@@ -1,10 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from .database import init_database
 from .api import include_routers
 
-# 初始化数据库
-init_database()
+# 初始化数据库管理器
+db_manager = init_database()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期事件处理程序"""
+    # 在应用启动时创建数据库表
+    await db_manager.create_tables_async()
+    yield
+    # 应用关闭时的清理操作
+    pass
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -12,7 +22,8 @@ app = FastAPI(
     description="基于FastAPI的知识图谱API服务",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # 配置CORS

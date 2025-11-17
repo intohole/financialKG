@@ -97,8 +97,12 @@ class DatabaseManager:
             expire_on_commit=False
         )
         
-        # 表创建将在外部初始化（应用启动或测试时）
         logger.info("数据库连接已初始化")
+        
+    async def create_tables_async(self):
+        """异步创建数据库表"""
+        async with self.engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     
     async def _create_tables(self):
         """异步创建数据库表"""
@@ -191,6 +195,23 @@ def init_database(db_path: Optional[str] = None, config_path: Optional[str] = No
     """
     global _db_manager
     _db_manager = DatabaseManager(db_path, config_path)
+    return _db_manager
+
+
+async def init_database_async(db_path: Optional[str] = None, config_path: Optional[str] = None) -> DatabaseManager:
+    """
+    异步初始化数据库
+    
+    Args:
+        db_path: 数据库文件路径
+        config_path: 配置文件路径
+    
+    Returns:
+        DatabaseManager: 数据库管理器实例
+    """
+    global _db_manager
+    _db_manager = DatabaseManager(db_path, config_path)
+    await _db_manager._create_tables()
     return _db_manager
 
 
