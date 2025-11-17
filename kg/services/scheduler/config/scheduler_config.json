@@ -1,0 +1,127 @@
+{
+  "scheduler": {
+    "timezone": "Asia/Shanghai",
+    "job_defaults": {
+      "coalesce": true,
+      "max_instances": 3,
+      "misfire_grace_time": 30
+    },
+    "executors": {
+      "default": {
+        "type": "asyncio",
+        "max_workers": 10
+      }
+    },
+    "job_stores": {
+      "default": {
+        "type": "memory"
+      }
+    }
+  },
+  "tasks": [
+    {
+      "id": "daily_report",
+      "name": "每日报告生成",
+      "func": "reports.generate_daily_report",
+      "trigger": "cron",
+      "trigger_args": {
+        "hour": 8,
+        "minute": 0,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {
+        "send_email": true
+      },
+      "enabled": true,
+      "priority": "medium",
+      "max_retries": 3,
+      "retry_delay": 60,
+      "timeout": 300,
+      "description": "每天早上8点生成并发送日报"
+    },
+    {
+      "id": "hourly_cleanup",
+      "name": "每小时清理临时文件",
+      "func": "cleanup.temp_files",
+      "trigger": "interval",
+      "trigger_args": {
+        "hours": 1
+      },
+      "args": [],
+      "kwargs": {},
+      "enabled": true,
+      "priority": "low",
+      "max_retries": 2,
+      "retry_delay": 30,
+      "timeout": 120,
+      "description": "每小时清理一次临时文件"
+    },
+    {
+      "id": "data_sync",
+      "name": "数据同步任务",
+      "func": "sync.external_data",
+      "trigger": "interval",
+      "trigger_args": {
+        "minutes": 30
+      },
+      "args": [],
+      "kwargs": {
+        "source": "external_api",
+        "target": "local_db"
+      },
+      "enabled": true,
+      "priority": "high",
+      "max_retries": 5,
+      "retry_delay": 60,
+      "timeout": 600,
+      "description": "每30分钟同步一次外部数据"
+    },
+    {
+      "id": "weekly_maintenance",
+      "name": "每周系统维护",
+      "func": "maintenance.system_check",
+      "trigger": "cron",
+      "trigger_args": {
+        "day_of_week": "sun",
+        "hour": 2,
+        "minute": 0,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {
+        "full_check": true,
+        "send_report": true
+      },
+      "enabled": true,
+      "priority": "medium",
+      "max_retries": 3,
+      "retry_delay": 300,
+      "timeout": 1800,
+      "description": "每周日凌晨2点进行系统维护"
+    },
+    {
+      "id": "monthly_backup",
+      "name": "每月数据备份",
+      "func": "backup.full_backup",
+      "trigger": "cron",
+      "trigger_args": {
+        "day": 1,
+        "hour": 1,
+        "minute": 0,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {
+        "compress": true,
+        "upload_cloud": true
+      },
+      "enabled": true,
+      "priority": "high",
+      "max_retries": 3,
+      "retry_delay": 600,
+      "timeout": 3600,
+      "description": "每月1日凌晨1点进行完整数据备份"
+    }
+  ]
+}

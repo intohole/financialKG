@@ -1,0 +1,233 @@
+{
+  "scheduler": {
+    "timezone": "Asia/Shanghai",
+    "job_defaults": {
+      "coalesce": true,
+      "max_instances": 3,
+      "misfire_grace_time": 30
+    },
+    "executors": {
+      "default": {
+        "type": "asyncio",
+        "max_workers": 10
+      }
+    },
+    "job_stores": {
+      "default": {
+        "type": "memory"
+      }
+    }
+  },
+  "tasks": [
+    {
+      "id": "data_collection",
+      "name": "数据收集任务",
+      "func": "data_collector.collect_data",
+      "trigger": "interval",
+      "trigger_args": {
+        "minutes": 15
+      },
+      "args": [],
+      "kwargs": {
+        "source": "external_api",
+        "batch_size": 100
+      },
+      "enabled": true,
+      "priority": "high",
+      "max_retries": 3,
+      "retry_delay": 60,
+      "timeout": 300,
+      "description": "每15分钟从外部API收集数据"
+    },
+    {
+      "id": "data_processing",
+      "name": "数据处理任务",
+      "func": "data_processor.process_data",
+      "trigger": "interval",
+      "trigger_args": {
+        "minutes": 30
+      },
+      "args": [],
+      "kwargs": {
+        "input_format": "json",
+        "output_format": "csv"
+      },
+      "enabled": true,
+      "priority": "medium",
+      "max_retries": 2,
+      "retry_delay": 120,
+      "timeout": 600,
+      "description": "每30分钟处理收集的数据"
+    },
+    {
+      "id": "health_check",
+      "name": "系统健康检查",
+      "func": "health_checker.check_system",
+      "trigger": "interval",
+      "trigger_args": {
+        "minutes": 5
+      },
+      "args": [],
+      "kwargs": {
+        "check_disk": true,
+        "check_memory": true,
+        "check_services": true
+      },
+      "enabled": true,
+      "priority": "high",
+      "max_retries": 2,
+      "retry_delay": 30,
+      "timeout": 60,
+      "description": "每5分钟检查系统健康状况"
+    },
+    {
+      "id": "notification_sender",
+      "name": "通知发送任务",
+      "func": "notification.send_pending_notifications",
+      "trigger": "interval",
+      "trigger_args": {
+        "minutes": 10
+      },
+      "args": [],
+      "kwargs": {
+        "channels": ["email", "sms"],
+        "batch_size": 50
+      },
+      "enabled": true,
+      "priority": "medium",
+      "max_retries": 3,
+      "retry_delay": 60,
+      "timeout": 180,
+      "description": "每10分钟发送待处理通知"
+    },
+    {
+      "id": "log_cleanup",
+      "name": "日志清理任务",
+      "func": "log_cleaner.cleanup_old_logs",
+      "trigger": "cron",
+      "trigger_args": {
+        "hour": 2,
+        "minute": 0,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {
+        "retention_days": 30,
+        "compress": true
+      },
+      "enabled": true,
+      "priority": "low",
+      "max_retries": 1,
+      "retry_delay": 300,
+      "timeout": 600,
+      "description": "每天凌晨2点清理旧日志文件"
+    },
+    {
+      "id": "backup_database",
+      "name": "数据库备份任务",
+      "func": "backup.backup_database",
+      "trigger": "cron",
+      "trigger_args": {
+        "hour": 3,
+        "minute": 30,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {
+        "compress": true,
+        "upload_to_cloud": true,
+        "cloud_provider": "aws_s3"
+      },
+      "enabled": true,
+      "priority": "high",
+      "max_retries": 3,
+      "retry_delay": 600,
+      "timeout": 1800,
+      "description": "每天凌晨3:30备份数据库"
+    },
+    {
+      "id": "report_generation",
+      "name": "报告生成任务",
+      "func": "report_generator.generate_daily_report",
+      "trigger": "cron",
+      "trigger_args": {
+        "hour": 8,
+        "minute": 0,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {
+        "format": "pdf",
+        "email_recipients": ["admin@example.com"]
+      },
+      "enabled": true,
+      "priority": "medium",
+      "max_retries": 2,
+      "retry_delay": 300,
+      "timeout": 600,
+      "description": "每天早上8点生成并发送日报"
+    },
+    {
+      "id": "cache_refresh",
+      "name": "缓存刷新任务",
+      "func": "cache.refresh_cache",
+      "trigger": "interval",
+      "trigger_args": {
+        "hours": 2
+      },
+      "args": [],
+      "kwargs": {
+        "cache_type": "redis",
+        "refresh_all": false
+      },
+      "enabled": true,
+      "priority": "medium",
+      "max_retries": 2,
+      "retry_delay": 60,
+      "timeout": 300,
+      "description": "每2小时刷新缓存"
+    },
+    {
+      "id": "security_scan",
+      "name": "安全扫描任务",
+      "func": "security.scanner.run_security_scan",
+      "trigger": "cron",
+      "trigger_args": {
+        "day_of_week": "sun",
+        "hour": 4,
+        "minute": 0,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {
+        "scan_type": "full",
+        "generate_report": true
+      },
+      "enabled": true,
+      "priority": "high",
+      "max_retries": 1,
+      "retry_delay": 1800,
+      "timeout": 3600,
+      "description": "每周日凌晨4点进行安全扫描"
+    },
+    {
+      "id": "api_rate_limit_reset",
+      "name": "API限流重置任务",
+      "func": "api_limiter.reset_rate_limits",
+      "trigger": "cron",
+      "trigger_args": {
+        "hour": 0,
+        "minute": 0,
+        "timezone": "Asia/Shanghai"
+      },
+      "args": [],
+      "kwargs": {},
+      "enabled": true,
+      "priority": "medium",
+      "max_retries": 1,
+      "retry_delay": 60,
+      "timeout": 120,
+      "description": "每天午夜重置API限流计数器"
+    }
+  ]
+}
