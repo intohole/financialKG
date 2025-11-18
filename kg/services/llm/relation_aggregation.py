@@ -74,7 +74,7 @@ class RelationAggregationService(LangChainBaseService):
             f"- {i+1}. 主体: {rel.get('subject', '未知')}, "
             f"客体: {rel.get('object', '未知')}, "
             f"关系类型: {rel.get('relation_type', '未知')}, "
-            f"属性: {rel.get('attributes', {})}"
+            f"属性: {str(rel.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
             for i, rel in enumerate(relations)
         ])
         
@@ -98,6 +98,14 @@ class RelationAggregationService(LangChainBaseService):
         """
         # 过滤出指定类型的关系
         filtered_relations = [r for r in relations if r.get('relation_type') == relation_type]
+        
+        # 将关系列表格式化为字符串
+        relations_str = "\n".join([
+            f"- {i+1}. 主体: {rel.get('subject', '未知')}, "
+            f"客体: {rel.get('object', '未知')}, "
+            f"属性: {str(rel.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
+            for i, rel in enumerate(filtered_relations)
+        ])
         
         type_specific_prompt = f"""
 你是一个专业的关系聚合专家，专门对{relation_type}类型的相似关系进行识别、分析和聚合。
@@ -142,14 +150,6 @@ class RelationAggregationService(LangChainBaseService):
 5. 返回有效的JSON格式
 """
         
-        # 将关系列表格式化为字符串
-        relations_str = "\n".join([
-            f"- {i+1}. 主体: {rel.get('subject', '未知')}, "
-            f"客体: {rel.get('object', '未知')}, "
-            f"属性: {rel.get('attributes', {})}"
-            for i, rel in enumerate(filtered_relations)
-        ])
-        
         inputs = {"relations": relations_str}
         return self.extract_structured_data(
             type_specific_prompt,
@@ -157,7 +157,7 @@ class RelationAggregationService(LangChainBaseService):
             inputs
         )
     
-    def find_duplicate_relations(self, relations: List[Dict[str, Any]], similarity_threshold: float = 0.8) -> Dict[str, Any]:
+    async def find_duplicate_relations(self, relations: List[Dict[str, Any]], similarity_threshold: float = 0.8) -> Dict[str, Any]:
         """
         查找重复或高度相似的关系
         
@@ -168,6 +168,15 @@ class RelationAggregationService(LangChainBaseService):
         Returns:
             包含重复关系的字典
         """
+        # 将关系列表格式化为字符串
+        relations_str = "\n".join([
+            f"- {i+1}. 主体: {rel.get('subject', '未知')}, "
+            f"客体: {rel.get('object', '未知')}, "
+            f"关系类型: {rel.get('relation_type', '未知')}, "
+            f"属性: {str(rel.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
+            for i, rel in enumerate(relations)
+        ])
+        
         duplicate_prompt = f"""
 你是一个专业的关系重复检测专家，专门识别关系列表中的重复或高度相似的关系。
 
@@ -211,12 +220,12 @@ class RelationAggregationService(LangChainBaseService):
             f"- {i+1}. 主体: {rel.get('subject', '未知')}, "
             f"客体: {rel.get('object', '未知')}, "
             f"关系类型: {rel.get('relation_type', '未知')}, "
-            f"属性: {rel.get('attributes', {})}"
+            f"属性: {str(rel.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
             for i, rel in enumerate(relations)
         ])
         
         inputs = {"relations": relations_str}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             duplicate_prompt,
             human_prompt,
             inputs
@@ -281,7 +290,7 @@ class RelationAggregationService(LangChainBaseService):
             f"- {i+1}. 主体: {rel.get('subject', '未知')}, "
             f"客体: {rel.get('object', '未知')}, "
             f"关系类型: {rel.get('relation_type', '未知')}, "
-            f"属性: {rel.get('attributes', {})}"
+            f"属性: {str(rel.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
             for i, rel in enumerate(relations)
         ])
         

@@ -24,8 +24,8 @@ class RelationService:
         self.relation_group_repo = RelationGroupRepository(self.session)
         self.entity_service = EntityService(self.session)
     
-    @handle_db_errors_with_reraise()
-    def create_relation(self, source_entity_id: int, target_entity_id: int, 
+    @handle_db_errors_with_reraise() 
+    async def create_relation(self, source_entity_id: int, target_entity_id: int, 
                        relation_type: str, canonical_relation: Optional[str] = None,
                        properties: Optional[Dict[str, Any]] = None, weight: float = 1.0,
                        source: Optional[str] = None) -> Relation:
@@ -44,7 +44,7 @@ class RelationService:
         Returns:
             Relation: 创建的关系对象
         """
-        relation = self.relation_repo.create(
+        relation = await self.relation_repo.create(
             source_entity_id=source_entity_id,
             target_entity_id=target_entity_id,
             relation_type=relation_type,
@@ -88,8 +88,8 @@ class RelationService:
         logger.debug(f"获取或创建关系: {relation_type} (ID: {relation.id})")
         return relation
     
-    @handle_db_errors(default_return=[])
-    def find_similar_relations(self, source_entity_id: int, target_entity_id: int, 
+    @handle_db_errors(default_return=[]) 
+    async def find_similar_relations(self, source_entity_id: int, target_entity_id: int, 
                               relation_type: str, threshold: float = 0.8) -> List[Relation]:
         """
         查找相似关系
@@ -104,7 +104,7 @@ class RelationService:
             List[Relation]: 相似的关系列表
         """
         # 查找相同实体对之间的所有关系
-        relations = self.relation_repo.find_by_entities(source_entity_id, target_entity_id)
+        relations = await self.relation_repo.find_by_entities(source_entity_id, target_entity_id)
         
         # 过滤出相同类型的关系
         same_type_relations = [r for r in relations if r.relation_type == relation_type]
@@ -113,8 +113,8 @@ class RelationService:
         # 返回相似度大于阈值的关系
         return same_type_relations
     
-    @handle_db_errors_with_reraise()
-    def merge_relations(self, relation_ids: List[int], canonical_relation: str, 
+    @handle_db_errors_with_reraise() 
+    async def merge_relations(self, relation_ids: List[int], canonical_relation: str, 
                        description: Optional[str] = None) -> RelationGroup:
         """
         合并关系，创建关系分组
@@ -128,16 +128,16 @@ class RelationService:
             RelationGroup: 创建的关系分组对象
         """
         # 创建关系分组
-        relation_group = self.relation_group_repo.create(
+        relation_group = await self.relation_group_repo.create(
             group_name=canonical_relation,
             description=description
         )
         
         # 更新所有关系的分组ID和规范关系类型
         for relation_id in relation_ids:
-            relation = self.relation_repo.get(relation_id)
+            relation = await self.relation_repo.get(relation_id)
             if relation:
-                self.relation_repo.update(
+                await self.relation_repo.update(
                     relation_id,
                     relation_group_id=relation_group.id,
                     canonical_relation=canonical_relation
@@ -151,18 +151,22 @@ class RelationService:
         """根据ID获取关系"""
         return await self.relation_repo.get(relation_id)
     
-    @handle_db_errors(default_return=[])
-    def get_relations_by_group(self, relation_group_id: int) -> List[Relation]:
-        """根据分组ID获取关系"""
-        return self.relation_repo.find_by_group_id(relation_group_id)
+    @handle_db_errors(default_return=[]) 
+    async def get_relations_by_group(self, relation_group_id: int) -> List[Relation]:
+        """
+        根据分组ID获取关系
+        """
+        return await self.relation_repo.find_by_group_id(relation_group_id)
     
-    @handle_db_errors(default_return=[])
-    def get_relations_by_type(self, relation_type: str, limit: Optional[int] = None) -> List[Relation]:
-        """根据类型获取关系"""
-        return self.relation_repo.find_by_type(relation_type, limit)
+    @handle_db_errors(default_return=[]) 
+    async def get_relations_by_type(self, relation_type: str, limit: Optional[int] = None) -> List[Relation]:
+        """
+        根据类型获取关系
+        """
+        return await self.relation_repo.find_by_type(relation_type, limit)
     
-    @handle_db_errors(default_return=[])
-    def get_relations_by_entity(self, entity_id: int, as_source: bool = True, 
+    @handle_db_errors(default_return=[]) 
+    async def get_relations_by_entity(self, entity_id: int, as_source: bool = True, 
                                as_target: bool = True, relation_type: Optional[str] = None) -> List[Relation]:
         """
         根据实体ID获取关系
@@ -179,21 +183,27 @@ class RelationService:
         relations = []
         
         if as_source:
-            relations.extend(self.relation_repo.find_by_source_entity(entity_id, relation_type))
+            source_relations = await self.relation_repo.find_by_source_entity(entity_id, relation_type)
+            relations.extend(source_relations)
         
         if as_target:
-            relations.extend(self.relation_repo.find_by_target_entity(entity_id, relation_type))
+            target_relations = await self.relation_repo.find_by_target_entity(entity_id, relation_type)
+            relations.extend(target_relations)
         
         return relations
     
-    @handle_db_errors(default_return=[])
-    def get_entity_relations(self, source_entity_id: int, target_entity_id: int) -> List[Relation]:
-        """获取两个实体之间的关系"""
-        return self.relation_repo.find_by_entities(source_entity_id, target_entity_id)
+    @handle_db_errors(default_return=[]) 
+    async def get_entity_relations(self, source_entity_id: int, target_entity_id: int) -> List[Relation]:
+        """
+        获取两个实体之间的关系
+        """
+        return await self.relation_repo.find_by_entities(source_entity_id, target_entity_id)
     
-    @handle_db_errors(default_return=None)
-    def update_relation(self, relation_id: int, **kwargs) -> Optional[Relation]:
-        """更新关系"""
+    @handle_db_errors(default_return=None) 
+    async def update_relation(self, relation_id: int, **kwargs) -> Optional[Relation]:
+        """
+        更新关系
+        """
         if 'properties' in kwargs and kwargs['properties']:
             kwargs['properties'] = json.dumps(kwargs['properties'])
-        return self.relation_repo.update(relation_id, **kwargs)
+        return await self.relation_repo.update(relation_id, **kwargs)

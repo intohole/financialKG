@@ -4,7 +4,12 @@ LangChain基础服务
 """
 from typing import Dict, Any, List, Optional
 from abc import ABC, abstractmethod
-from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.prompts import (
+    PromptTemplate,
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate
+)
+from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnablePassthrough
 from .base_service import BaseLLMService
 from .langchain_config import langchain_config
@@ -30,112 +35,94 @@ class LangChainBaseService(BaseLLMService):
         """
         return self.llm
     
-    def create_prompt_template(self, template: str, input_variables: list) -> PromptTemplate:
-        """
-        创建提示词模板
-        
-        Args:
-            template: 提示词模板字符串
-            input_variables: 输入变量列表
-            
-        Returns:
-            PromptTemplate实例
-        """
-        return PromptTemplate(
-            template=template,
-            input_variables=input_variables
-        )
     
-    def create_chat_prompt_template(self, system_template: str, human_template: str) -> ChatPromptTemplate:
+    async def extract_structured_data(self, system_prompt: str, human_prompt: str, input_data: Dict[str, Any], **kwargs) -> Dict[str, Any]:
         """
-        创建聊天提示词模板
-        
+        Extract structured data from text using LLM
+
         Args:
-            system_template: 系统提示词模板
-            human_template: 用户提示词模板
-            
+            system_prompt (str): System prompt
+            human_prompt (str): Human prompt template or pre-formatted string
+            input_data (dict): Input data for prompt template
+            **kwargs: Additional parameters for LLM
+
         Returns:
-            ChatPromptTemplate实例
-        """
-        return ChatPromptTemplate.from_messages([
-            ("system", system_template),
-            ("human", human_template)
-        ])
-    
-    def create_chain(self, prompt: PromptTemplate):
-        """
-        创建LLM链
-        
-        Args:
-            prompt: 提示词模板
-            
-        Returns:
-            可运行链实例
-        """
-        return prompt | self.llm | RunnablePassthrough()
-    
-    def run_chain(self, chain, input_data: dict) -> Dict[str, Any]:
-        """
-        运行LLM链
-        
-        Args:
-            chain: 可运行链实例
-            input_data: 输入数据
-            
-        Returns:
-            运行结果
+            dict: Structured data extracted from text
         """
         try:
-            return chain.invoke(input_data)
-        except Exception as e:
-            raise RuntimeError(f"运行LLM链失败: {e}")
-    
-    async def extract_structured_data(self, system_prompt: str, human_prompt: str, input_data: dict) -> Dict[str, Any]:
-        """
-        提取结构化数据
-        
-        Args:
-            system_prompt: 系统提示词
-            human_prompt: 人类提示词
-            input_data: 输入数据
+            # 组合系统提示词与JSON格式说明
+            full_system_prompt = system_prompt + "\n\n" + self.json_parser.get_format_instructions()
             
-        Returns:
-            结构化数据
+            # 创建系统消息（原始字符串，不是模板）
+            system_message = SystemMessage(content=full_system_prompt)
+            
+            # 创建人类提示模板（从模板推断变量）
+            human_message_prompt = HumanMessagePromptTemplate.from_template(
+                template=human_prompt
+            )
+            
+            # 创建聊天提示模板
+            chat_prompt = ChatPromptTemplate(
+                messages=[system_message, human_message_prompt]
+            )
+            
+            # 创建链
+            chain = chat_prompt | self.llm
+            
+            # 生成响应 - only pass input_data if there are variables to replace
+            if hasattr(human_message_prompt.prompt, 'input_variables') and len(human_message_prompt.prompt.input_variables) > 0:
+                response = await chain.ainvoke(input_data)
+            else:
+                response = await chain.ainvoke({})
+            
+            # 调试：打印响应内容
+            print("LLM Response:", response.content)
+            
+            # 解析JSON响应
+            return self.json_parser.parse(response.content)
+        except Exception as e:
+            raise Exception(f"提取结构化数据失败: {str(e)}") from e
+
+    async def generate_response(self, system_prompt, user_prompt, input_data=None, stream=False):
         """
-        # 创建聊天提示词模板
-        chat_prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt + "\n\n" + self.json_parser.get_format_instructions()),
-            ("human", human_prompt)
+        Generate response from LLM
+
+        Args:
+            system_prompt (str): System prompt
+            user_prompt (str): User prompt
+            input_data (dict, optional): Input data for prompt template. Defaults to None.
+            stream (bool, optional): Whether to stream response. Defaults to False.
+
+        Returns:
+            Response: Standardized response object
+        """
+        # Create prompt template
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", user_prompt),
         ])
         
-        # 创建可运行链
-        chain = chat_prompt | self.llm
+        # Create chain
+        chain = prompt | self.llm
         
-        # 运行链
-        response = await chain.ainvoke(input_data)
+        # Use input_data if provided, otherwise empty dict
+        prompt_input = input_data or {}
         
-        # 解析JSON结果
-        return self.json_parser.parse(response.content)
-
-    async def generate_response(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
-        """
-        生成LLM响应
-        
-        Args:
-            messages: 消息列表
-            **kwargs: 其他参数
-            
-        Returns:
-            响应结果
-        """
-        # 转换为LangChain格式
-        chat_prompt = ChatPromptTemplate.from_messages(messages)
-        chain = chat_prompt | self.llm
-        response = chain.invoke({})
+        # Generate response
+        if stream:
+            # Handle streaming response
+            response_chunks = []
+            async for chunk in chain.astream(prompt_input):
+                response_chunks.append(chunk.content)
+            content = "".join(response_chunks)
+        else:
+            # Handle regular response
+            response = await chain.ainvoke(prompt_input)
+            content = response.content
         
         # 标准化响应格式
         return {
-            "content": response.content,
+            "content": content,
             "model": self.llm_config.model,
             "prompt_tokens": 0,
             "completion_tokens": 0,

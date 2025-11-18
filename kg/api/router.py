@@ -248,41 +248,9 @@ async def process_news(
         raise HTTPException(status_code=404, detail="News not found or processing failed")
     return processed_result
 
-# LLM数据提取和存储端点
-@router.post("/entities/extract", response_model=schemas.LLMExtractedData, status_code=201)
-async def extract_and_store_entities(
-    llm_data: schemas.LLMExtractedData,
-    db: AsyncSession = Depends(get_db_session)
-):
-    kg_service = KnowledgeGraphService(db)
-    result = await kg_service.extract_and_store_entities(
-        llm_data=llm_data.model_dump()
-    )
-    return result
 
-@router.post("/knowledge/submit", response_model=Dict[str, Any], status_code=201)
-async def submit_knowledge(
-    submission: Dict[str, Any],
-    db: AsyncSession = Depends(get_db_session)
-):
-    """Submit knowledge extracted by LLM"""
-    kg_service = KnowledgeGraphService(db)
-    news_id = submission.get("news_id")
-    entities = submission.get("entities", [])
-    relations = submission.get("relations", [])
-    
-    if not news_id:
-        raise HTTPException(status_code=400, detail="Missing news_id")
-    
-    news, stored_entities, stored_relations = await kg_service.store_llm_extracted_data(news_id, entities, relations)
-    
-    return {
-        "success": True,
-        "message": "Knowledge submitted successfully",
-        "news_id": news.id if news else None,
-        "entities_count": len(stored_entities),
-        "relations_count": len(stored_relations)
-    }
+
+
 
 # 实体邻居查询端点
 @router.get("/entities/{entity_id}/neighbors", response_model=schemas.EntityNeighborsResponse)

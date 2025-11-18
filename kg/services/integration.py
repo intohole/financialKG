@@ -12,6 +12,9 @@ from kg.services.entity_relation_deduplication_service import EntityRelationDedu
 from kg.services.database.entity_service import EntityService
 from kg.services.database.relation_service import RelationService
 from kg.services.llm_service import LLMService
+# 导入embedding和chroma服务类型
+from kg.services.embedding_service import EmbeddingService
+from kg.services.chroma_service import ChromaService
 from kg.database.repositories import EntityRepository, RelationRepository, EntityGroupRepository, RelationGroupRepository
 
 logger = logging.getLogger(__name__)
@@ -27,7 +30,9 @@ class DeduplicationServiceRegistry:
     def register_service(cls, 
                         session: Session,
                         llm_service: LLMService,
-                        service_id: str = "default") -> EntityRelationDeduplicationService:
+                        service_id: str = "default",
+                        embedding_service: Optional[EmbeddingService] = None,
+                        chroma_service: Optional[ChromaService] = None) -> EntityRelationDeduplicationService:
         """
         注册去重服务实例
         
@@ -42,7 +47,9 @@ class DeduplicationServiceRegistry:
         # 创建服务实例（EntityRelationDeduplicationService内部会自动创建所需的服务和仓库）
         service = EntityRelationDeduplicationService(
             session=session,
-            llm_service=llm_service
+            llm_service=llm_service,
+            embedding_service=embedding_service,
+            chroma_service=chroma_service
         )
         
         # 注册服务
@@ -80,7 +87,9 @@ class DeduplicationServiceRegistry:
 def create_deduplication_service_provider(
     session_factory,
     llm_service: LLMService,
-    service_config: Optional[Dict[str, Any]] = None
+    service_config: Optional[Dict[str, Any]] = None,
+    embedding_service: Optional[EmbeddingService] = None,
+    chroma_service: Optional[ChromaService] = None
 ) -> EntityRelationDeduplicationService:
     """
     创建去重服务提供者
@@ -100,7 +109,9 @@ def create_deduplication_service_provider(
     service = DeduplicationServiceRegistry.register_service(
         session=session,
         llm_service=llm_service,
-        service_id="default"
+        service_id="default",
+        embedding_service=embedding_service,
+        chroma_service=chroma_service
     )
     
     return service

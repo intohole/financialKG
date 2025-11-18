@@ -132,17 +132,19 @@ class NewsService:
             context=context
         )
     
-    @handle_db_errors(default_return=[])
-    def get_news_entities(self, news_id: int, limit: Optional[int] = None) -> List[Entity]:
-        """获取新闻中的实体"""
+    @handle_db_errors(default_return=[]) 
+    async def get_news_entities(self, news_id: int, limit: Optional[int] = None) -> List[Entity]:
+        """
+        获取新闻中的实体
+        """
         # 获取新闻与实体的关联记录
-        entity_news_list = self.entity_news_repo.find_by_news(news_id, limit)
+        entity_news_list = await self.entity_news_repo.find_by_news(news_id, limit)
         # 获取所有实体ID
         entity_ids = [en.entity_id for en in entity_news_list]
         # 获取实体对象
         entities = []
         for entity_id in entity_ids:
-            entity = self.entity_service.get_entity_by_id(entity_id)
+            entity = await self.entity_service.get_entity_by_id(entity_id)
             if entity:
                 entities.append(entity)
         return entities

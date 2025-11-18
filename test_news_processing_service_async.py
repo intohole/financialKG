@@ -5,7 +5,7 @@ import sys
 import asyncio
 from datetime import datetime
 from kg.services.news_processing_service import NewsProcessingService
-from kg.services.data_services import KnowledgeGraphService
+from kg.services.database.knowledge_graph_service import KnowledgeGraphService
 from kg.database.connection import db_session
 
 async def test_news_processing():

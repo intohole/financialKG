@@ -169,6 +169,81 @@ class LLMConfig(BaseConfig):
         return self.client
 
 
+class EmbeddingConfig(BaseConfig):
+    """嵌入模型配置类"""
+    
+    def __init__(self, config_path: Optional[str] = None):
+        """
+        初始化嵌入模型配置
+        
+        Args:
+            config_path: 配置文件路径，默认为项目根目录下的config.yaml
+        """
+        super().__init__(config_path)
+        # 延迟初始化客户端
+        self._client = None
+    
+    @property
+    def embedding_model(self) -> str:
+        """
+        获取嵌入模型名称
+        """
+        return self.config.get('embedding', {}).get('model', 'text-embedding-ada-002')
+    
+    @property
+    def embedding_api_key(self) -> Optional[str]:
+        """
+        获取嵌入API密钥
+        """
+        return self.config.get('embedding', {}).get('api_key') or os.getenv('EMBEDDING_API_KEY') or self.api_key
+    
+    @property
+    def embedding_base_url(self) -> Optional[str]:
+        """
+        获取嵌入API基础URL
+        """
+        return self.config.get('embedding', {}).get('base_url') or os.getenv('EMBEDDING_BASE_URL') or self.base_url
+    
+    def _init_client(self):
+        """
+        初始化嵌入服务客户端
+        """
+        if self._client is not None:
+            return self._client
+
+        from openai import AsyncOpenAI
+        
+        api_key = self.embedding_api_key
+        if not api_key:
+            raise ValueError("未找到嵌入API密钥，请在配置文件中设置或通过环境变量EMBEDDING_API_KEY提供")
+        
+        client_config = {
+            'api_key': api_key,
+            'timeout': self.timeout,
+            'max_retries': self.max_retries
+        }
+        
+        base_url = self.embedding_base_url
+        if base_url:
+            client_config['base_url'] = base_url
+            
+        self._client = AsyncOpenAI(**client_config)
+        return self._client
+
+    @property
+    def client(self):
+        """
+        获取嵌入服务客户端实例
+        """
+        return self._init_client()
+    
+    def get_client(self):
+        """
+        获取嵌入服务客户端
+        """
+        return self.client
+
+
 class TaskConfig:
     """任务配置类"""
     
@@ -389,5 +464,6 @@ class SchedulerConfigWrapper(BaseConfig):
 
 # 全局配置实例
 llm_config = LLMConfig()
+embedding_config = EmbeddingConfig()
 scheduler_config_manager = SchedulerConfigManager()
 scheduler_config = SchedulerConfigWrapper()

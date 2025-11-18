@@ -107,7 +107,7 @@ class LLMService:
         logger.info(f"新闻摘要生成完成，摘要类型: {summary_type}")
         return result
     
-    def aggregate_entities(self, entities: List[Dict[str, Any]], aggregation_type: str = "standard", **kwargs) -> Dict[str, Any]:
+    async def aggregate_entities(self, entities: List[Dict[str, Any]], aggregation_type: str = "standard", **kwargs) -> Dict[str, Any]:
         """
         聚合相似实体
         
@@ -126,7 +126,7 @@ class LLMService:
             result = self.entity_aggregation.aggregate_entities_by_type(entities, entity_type)
         elif aggregation_type == "duplicate":
             similarity_threshold = kwargs.get("similarity_threshold", 0.8)
-            result = self.entity_aggregation.find_duplicate_entities(entities, similarity_threshold)
+            result = await self.entity_aggregation.find_duplicate_entities(entities, similarity_threshold)
         elif aggregation_type == "merge_attributes":
             result = self.entity_aggregation.merge_entity_attributes(entities)
         else:
@@ -135,7 +135,7 @@ class LLMService:
         logger.info(f"实体聚合完成，聚合类型: {aggregation_type}")
         return result
     
-    def aggregate_relations(self, relations: List[Dict[str, Any]], aggregation_type: str = "standard", **kwargs) -> Dict[str, Any]:
+    async def aggregate_relations(self, relations: List[Dict[str, Any]], aggregation_type: str = "standard", **kwargs) -> Dict[str, Any]:
         """
         聚合相似关系
         
@@ -154,7 +154,7 @@ class LLMService:
             result = self.relation_aggregation.aggregate_relations_by_type(relations, relation_type)
         elif aggregation_type == "duplicate":
             similarity_threshold = kwargs.get("similarity_threshold", 0.8)
-            result = self.relation_aggregation.find_duplicate_relations(relations, similarity_threshold)
+            result = await self.relation_aggregation.find_duplicate_relations(relations, similarity_threshold)
         elif aggregation_type == "merge_attributes":
             result = self.relation_aggregation.merge_relation_attributes(relations)
         elif aggregation_type == "consolidate":

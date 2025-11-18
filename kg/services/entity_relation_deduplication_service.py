@@ -22,19 +22,28 @@ from kg.services.database.relation_service import RelationService
 # 导入LLM服务
 from kg.services.llm_service import LLMService
 
+# 导入embedding服务
+from kg.services.embedding_service import create_embedding_service, EmbeddingService
+
+# 导入Chroma向量数据库服务
+from kg.services.chroma_service import create_chroma_service, ChromaService
+
 logger = logging.getLogger(__name__)
 
 
 class EntityRelationDeduplicationService:
     """实体和关系去重合并服务"""
     
-    def __init__(self, session: Optional[Session] = None, llm_service: Optional[LLMService] = None):
+    def __init__(self, session: Optional[Session] = None, llm_service: Optional[LLMService] = None,
+                 embedding_service: Optional[EmbeddingService] = None, chroma_service: Optional[ChromaService] = None):
         """
         初始化去重合并服务
         
         Args:
             session: 数据库会话，如果为None则创建新会话
             llm_service: LLM服务实例，如果为None则创建新实例
+            embedding_service: Embedding服务实例，如果为None则创建新实例
+            chroma_service: Chroma服务实例，如果为None则创建新实例
         """
         self.session = session or get_db_session()
         self.entity_service = EntityService(self.session)
@@ -44,6 +53,8 @@ class EntityRelationDeduplicationService:
         self.entity_group_repo = EntityGroupRepository(self.session)
         self.relation_group_repo = RelationGroupRepository(self.session)
         self.llm_service = llm_service or LLMService()
+        self.embedding_service = embedding_service or create_embedding_service()
+        self.chroma_service = chroma_service or create_chroma_service()
     
     @handle_db_errors_with_reraise()
     async def deduplicate_entities_by_type(self, entity_type: str, 
@@ -65,7 +76,7 @@ class EntityRelationDeduplicationService:
         logger.info(f"开始对类型为 {entity_type} 的实体进行去重，相似度阈值: {similarity_threshold}")
         
         # 从数据库获取指定类型的实体
-        entities = self.entity_service.get_entities_by_type(entity_type, limit=limit)
+        entities = await self.entity_service.get_entities_by_type(entity_type, limit=limit)
         logger.info(f"共获取到 {len(entities)} 个 {entity_type} 类型实体")
         
         # 转换为LLM服务需要的格式
@@ -90,12 +101,79 @@ class EntityRelationDeduplicationService:
             batch = entities_data[i:i + batch_size]
             logger.info(f"处理批次 {i//batch_size + 1}/{(len(entities_data) + batch_size - 1)//batch_size}")
             
-            # 调用LLM服务查找重复实体
-            duplicate_result = self.llm_service.aggregate_entities(
-                batch, 
-                aggregation_type="duplicate",
-                similarity_threshold=similarity_threshold
-            )
+            # 增强：使用embedding和Chroma向量搜索查找潜在重复实体
+            potential_duplicate_groups = []
+            
+            try:
+                # 1. 提取实体名称作为文本用于生成embedding
+                entity_names = [entity.get("name", "") for entity in batch]
+                
+                # 2. 获取实体embedding
+                embeddings = await self.embedding_service.get_embeddings(entity_names)
+                
+                # 3. 将embedding存储到Chroma向量数据库
+                entity_ids = [str(entity.get("id", f"temp_{i}")) for i, entity in enumerate(batch)]
+                metadata = [{"entity_type": entity.get("type", ""), "source": entity.get("source", "")} for entity in batch]
+                
+                await self.chroma_service.add_embeddings(
+                    collection_name=f"entities_{entity_type}",
+                    documents=entity_names,
+                    embeddings=embeddings,
+                    ids=entity_ids,
+                    metadata=metadata
+                )
+                
+                # 4. 查询相似实体
+                similar_results = await self.chroma_service.query_similar_embeddings(
+                    collection_name=f"entities_{entity_type}",
+                    query_embeddings=embeddings,
+                    n_results=10,
+                    where={"entity_type": entity_type}
+                )
+                
+                # 5. 构建潜在重复实体组
+                processed_ids = set()
+                for i, ids in enumerate(similar_results.get("ids", [])):
+                    if not ids:
+                        continue
+                        
+                    # 获取相似实体ID和分数
+                    for j, id in enumerate(ids):
+                        if id not in processed_ids and j > 0:  # 跳过自己
+                            score = similar_results.get("distances", [[]])[i][j]
+                            if score < (1.0 - similarity_threshold):  # 距离越小相似度越高
+                                # 查找原始实体
+                                original_entity = next((e for e in batch if str(e.get("id")) == id), None)
+                                if original_entity:
+                                    # 查找当前查询实体
+                                    query_entity = batch[i]
+                                    # 将这两个实体作为潜在重复组
+                                    potential_duplicate_groups.append([query_entity, original_entity])
+                                    processed_ids.add(id)
+            except Exception as e:
+                logger.error(f"使用embedding和Chroma查找潜在重复实体失败: {str(e)}")
+                # 即使失败，也继续使用传统方法
+            
+            # 合并潜在重复实体组
+            if potential_duplicate_groups:
+                # 将潜在重复实体组转换为实体列表
+                potential_duplicates = []
+                for group in potential_duplicate_groups:
+                    potential_duplicates.extend(group)
+                
+                # 调用LLM服务查找并合并重复实体
+                duplicate_result = await self.llm_service.aggregate_entities(
+                    potential_duplicates,
+                    aggregation_type="duplicate",
+                    similarity_threshold=similarity_threshold
+                )
+            else:
+                # 没有潜在重复实体，直接调用LLM服务
+                duplicate_result = await self.llm_service.aggregate_entities(
+                    batch,
+                    aggregation_type="duplicate",
+                    similarity_threshold=similarity_threshold
+                )
             
             # 处理重复实体组
             duplicate_groups = duplicate_result.get("duplicate_groups", [])
@@ -141,7 +219,7 @@ class EntityRelationDeduplicationService:
             return None
         
         # 调用LLM服务进行实体属性合并，获取规范名称
-        merge_result = self.llm_service.aggregate_entities(
+        merge_result = await self.llm_service.aggregate_entities(
             entities_info,
             aggregation_type="merge_attributes"
         )
@@ -154,7 +232,7 @@ class EntityRelationDeduplicationService:
         description = f"自动合并的{entity_type}类型实体组，包含{len(entity_ids)}个实体"
         
         # 创建实体组并合并实体
-        entity_group = self.entity_service.merge_entities(
+        entity_group = await self.entity_service.merge_entities(
             entity_ids=entity_ids,
             canonical_name=canonical_name,
             description=description
@@ -183,7 +261,7 @@ class EntityRelationDeduplicationService:
         logger.info(f"开始对关键词 '{keyword}' 搜索到的实体进行去重，相似度阈值: {similarity_threshold}")
         
         # 从数据库搜索实体
-        entities = self.entity_service.search_entities(keyword, entity_type, limit)
+        entities = await self.entity_service.search_entities(keyword, entity_type, limit)
         logger.info(f"搜索到 {len(entities)} 个相关实体")
         
         if not entities:
@@ -210,7 +288,7 @@ class EntityRelationDeduplicationService:
             })
         
         # 调用LLM服务查找重复实体
-        duplicate_result = self.llm_service.aggregate_entities(
+        duplicate_result = await self.llm_service.aggregate_entities(
             entities_data,
             aggregation_type="duplicate",
             similarity_threshold=similarity_threshold
@@ -334,7 +412,7 @@ class EntityRelationDeduplicationService:
         logger.info(f"开始对类型为 {relation_type} 的关系进行去重，相似度阈值: {similarity_threshold}")
         
         # 从数据库获取指定类型的关系
-        relations = self.relation_service.get_relations_by_type(relation_type, limit=limit)
+        relations = await self.relation_service.get_relations_by_type(relation_type, limit=limit)
         logger.info(f"共获取到 {len(relations)} 个 {relation_type} 类型关系")
         
         # 转换为LLM服务需要的格式
@@ -343,8 +421,8 @@ class EntityRelationDeduplicationService:
             properties = json.loads(relation.properties) if relation.properties else {}
             
             # 获取源实体和目标实体信息
-            source_entity = self.entity_service.get_entity_by_id(relation.source_entity_id)
-            target_entity = self.entity_service.get_entity_by_id(relation.target_entity_id)
+            source_entity = await self.entity_service.get_entity_by_id(relation.source_entity_id)
+            target_entity = await self.entity_service.get_entity_by_id(relation.target_entity_id)
             
             relations_data.append({
                 "id": relation.id,
@@ -376,7 +454,7 @@ class EntityRelationDeduplicationService:
             logger.info(f"处理批次 {i//batch_size + 1}/{(len(relations_data) + batch_size - 1)//batch_size}")
             
             # 调用LLM服务查找重复关系
-            duplicate_result = self.llm_service.aggregate_relations(
+            duplicate_result = await self.llm_service.aggregate_relations(
                 batch,
                 aggregation_type="duplicate",
                 similarity_threshold=similarity_threshold
@@ -426,7 +504,7 @@ class EntityRelationDeduplicationService:
             return None
         
         # 调用LLM服务进行关系属性合并，获取规范关系类型
-        merge_result = self.llm_service.aggregate_relations(
+        merge_result = await self.llm_service.aggregate_relations(
             relations_info,
             aggregation_type="merge_attributes"
         )
@@ -439,7 +517,7 @@ class EntityRelationDeduplicationService:
         description = f"自动合并的{relation_type}类型关系组，包含{len(relation_ids)}个关系"
         
         # 创建关系组并合并关系
-        relation_group = self.relation_service.merge_relations(
+        relation_group = await self.relation_service.merge_relations(
             relation_ids=relation_ids,
             canonical_relation=canonical_relation,
             description=description
@@ -472,7 +550,7 @@ class EntityRelationDeduplicationService:
         logger.info(f"开始对实体ID {entity_id} 相关的关系进行去重，相似度阈值: {similarity_threshold}")
         
         # 从数据库获取与指定实体相关的关系
-        relations = self.relation_service.get_relations_by_entity(
+        relations = await self.relation_service.get_relations_by_entity(
             entity_id, as_source, as_target, relation_type
         )
         logger.info(f"共获取到 {len(relations)} 个相关关系")
@@ -483,8 +561,8 @@ class EntityRelationDeduplicationService:
             properties = json.loads(relation.properties) if relation.properties else {}
             
             # 获取源实体和目标实体信息
-            source_entity = self.entity_service.get_entity_by_id(relation.source_entity_id)
-            target_entity = self.entity_service.get_entity_by_id(relation.target_entity_id)
+            source_entity = await self.entity_service.get_entity_by_id(relation.source_entity_id)
+            target_entity = await self.entity_service.get_entity_by_id(relation.target_entity_id)
             
             relations_data.append({
                 "id": relation.id,
@@ -637,14 +715,14 @@ class EntityRelationDeduplicationService:
         logger.info(f"开始整合实体组ID {entity_group_id} 相关的关系")
         
         # 获取实体组中的所有实体
-        entities_in_group = self.entity_service.get_entities_by_group(entity_group_id)
+        entities_in_group = await self.entity_service.get_entities_by_group(entity_group_id)
         logger.info(f"实体组中共有 {len(entities_in_group)} 个实体")
         
         # 获取主实体（用于关系整合）
         entity_group = self.entity_group_repo.get(entity_group_id)
         primary_entity = None
         if entity_group and entity_group.primary_entity_id:
-            primary_entity = self.entity_service.get_entity_by_id(entity_group.primary_entity_id)
+            primary_entity = await self.entity_service.get_entity_by_id(entity_group.primary_entity_id)
         
         if not primary_entity and entities_in_group:
             # 如果没有指定主实体，选择第一个实体
@@ -665,7 +743,7 @@ class EntityRelationDeduplicationService:
         all_relations = []
         for entity in entities_in_group:
             # 获取该实体作为源或目标的所有关系
-            relations = self.relation_service.get_relations_by_entity(
+            relations = await self.relation_service.get_relations_by_entity(
                 entity.id, as_source=True, as_target=True
             )
             all_relations.extend(relations)
@@ -680,8 +758,8 @@ class EntityRelationDeduplicationService:
             properties = json.loads(relation.properties) if relation.properties else {}
             
             # 获取源实体和目标实体信息
-            source_entity = self.entity_service.get_entity_by_id(relation.source_entity_id)
-            target_entity = self.entity_service.get_entity_by_id(relation.target_entity_id)
+            source_entity = await self.entity_service.get_entity_by_id(relation.source_entity_id)
+            target_entity = await self.entity_service.get_entity_by_id(relation.target_entity_id)
             
             relations_data.append({
                 "id": relation.id,

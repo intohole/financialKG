@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from kg.services.news_processing_service import NewsProcessingService
-from kg.services.data_services import KnowledgeGraphService
+from kg.services.database.knowledge_graph_service import KnowledgeGraphService
 from kg.database.connection import init_database_async
 
 

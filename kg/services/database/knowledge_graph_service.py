@@ -10,6 +10,8 @@ from kg.utils.db_utils import handle_db_errors, handle_db_errors_with_reraise
 from .entity_service import EntityService
 from .relation_service import RelationService
 from .news_service import NewsService
+from .deduplication_service import DeduplicationService
+from .statistics_service import StatisticsService
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -24,6 +26,12 @@ class KnowledgeGraphService:
         self.entity_service = EntityService(self.session)
         self.relation_service = RelationService(self.session)
         self.news_service = NewsService(self.session)
+        self.deduplication_service = DeduplicationService(self.entity_service, self.relation_service)
+        self.statistics_service = StatisticsService(self.entity_service, self.relation_service, self.news_service)
+        
+        # 导入实体关系去重服务
+        from kg.services.entity_relation_deduplication_service import EntityRelationDeduplicationService
+        self.entity_relation_deduplication_service = EntityRelationDeduplicationService(self.session)
     
     @handle_db_errors_with_reraise()
     async def create_news(self, title: str, content: str, url: str = None, publish_time: Optional[datetime] = None, source: str = "unknown", author: str = None) -> News:
@@ -106,7 +114,7 @@ class KnowledgeGraphService:
         # 批量存储关系
         stored_relations = []
         
-        # 首先收集所有需要的实体名称
+        # 首先收集所有需要的实体名称（用于名称转ID的情况）
         entity_names = set()
         for relation in relations:
             source_name = relation.get("source_entity")
@@ -122,29 +130,63 @@ class KnowledgeGraphService:
         
         # 创建关系
         for relation in relations:
-            source_name = relation.get("source_entity")
-            target_name = relation.get("target_entity")
+            # 先尝试直接获取ID
+            source_id = relation.get("source_entity_id")
+            target_id = relation.get("target_entity_id")
             relation_type = relation.get("relation_type")
             confidence = relation.get("confidence", 1.0)
             
-            if source_name and target_name and relation_type:
-                # 优先从已存在的实体中获取
-                source_id = entity_map.get(source_name) or (existing_entity_map.get(source_name).id if existing_entity_map.get(source_name) else None)
-                target_id = entity_map.get(target_name) or (existing_entity_map.get(target_name).id if existing_entity_map.get(target_name) else None)
+            # 如果没有ID，则尝试通过名称查找
+            if not source_id or not target_id:
+                source_name = relation.get("source_entity")
+                target_name = relation.get("target_entity")
                 
-                if source_id and target_id:
-                    # 使用get_or_create_relation方法，自动检查并创建关系
-                    new_relation = await self.relation_service.get_or_create_relation(
-                        source_entity_id=source_id,
-                        target_entity_id=target_id,
-                        relation_type=relation_type,
-                        properties=relation,
-                        weight=confidence,
-                        source="llm"
-                    )
-                    stored_relations.append(new_relation)
+                if source_name and target_name:
+                    source_id = entity_map.get(source_name) or (existing_entity_map.get(source_name).id if existing_entity_map.get(source_name) else None)
+                    target_id = entity_map.get(target_name) or (existing_entity_map.get(target_name).id if existing_entity_map.get(target_name) else None)
+            
+            if source_id and target_id and relation_type:
+                # 使用get_or_create_relation方法，自动检查并创建关系
+                new_relation = await self.relation_service.get_or_create_relation(
+                    source_entity_id=source_id,
+                    target_entity_id=target_id,
+                    relation_type=relation_type,
+                    properties=relation,
+                    weight=confidence,
+                    source="llm"
+                )
+                stored_relations.append(new_relation)
         
         logger.info(f"存储关系完成，共 {len(stored_relations)} 个关系")
+        
+        # 自动去重：对新存储的实体和关系进行去重
+        logger.info(f"开始对新闻 {news_id} 的实体和关系进行去重")
+        
+        # 提取新存储的实体类型
+        new_entity_types = set(entity.type for entity in stored_entities)
+        
+        # 对每个新实体类型进行去重
+        for entity_type in new_entity_types:
+            logger.info(f"对实体类型 {entity_type} 进行去重")
+            await self.entity_relation_deduplication_service.deduplicate_entities_by_type(
+                entity_type=entity_type,
+                similarity_threshold=0.8,
+                batch_size=100
+            )
+        
+        # 提取新存储的关系类型
+        new_relation_types = set(relation.relation_type for relation in stored_relations)
+        
+        # 对每个新关系类型进行去重
+        for relation_type in new_relation_types:
+            logger.info(f"对关系类型 {relation_type} 进行去重")
+            await self.entity_relation_deduplication_service.deduplicate_relations_by_type(
+                relation_type=relation_type,
+                similarity_threshold=0.8,
+                batch_size=100
+            )
+        
+        logger.info(f"去重完成，新闻ID: {news_id}")
         
         # 更新新闻状态为已提取
         await self.news_service.update_news(news_id, extraction_status="completed", extracted_at=datetime.now())
@@ -496,52 +538,7 @@ class KnowledgeGraphService:
         Returns:
             List[EntityGroup]: 创建的实体分组列表
         """
-        logger.info(f"开始进行实体去重，相似度阈值: {similarity_threshold}")
-        
-        # 获取所有实体
-        all_entities = await self.entity_service.entity_repo.get_all()
-        logger.info(f"获取到 {len(all_entities)} 个实体进行去重")
-        
-        # 按类型分组
-        entities_by_type = {}
-        for entity in all_entities:
-            entity_type = entity.type
-            if entity_type not in entities_by_type:
-                entities_by_type[entity_type] = []
-            entities_by_type[entity_type].append(entity)
-        
-        # 对每种类型的实体进行去重
-        entity_groups = []
-        for entity_type, entities in entities_by_type.items():
-            logger.debug(f"对 {entity_type} 类型的 {len(entities)} 个实体进行去重")
-            
-            # 使用名称前缀分组
-            name_prefixes = {}
-            
-            for entity in entities:
-                # 使用名称的前2个字符作为前缀
-                prefix = entity.name[:2]
-                if prefix not in name_prefixes:
-                    name_prefixes[prefix] = []
-                name_prefixes[prefix].append(entity)
-            
-            # 对每个前缀分组进行合并
-            for prefix, group_entities in name_prefixes.items():
-                if len(group_entities) > 1:
-                    # 选择置信度最高的实体作为主要实体
-                    primary_entity = max(group_entities, key=lambda e: e.confidence_score)
-                    
-                    # 创建实体分组
-                    entity_group = await self.entity_service.merge_entities(
-                        entity_ids=[e.id for e in group_entities],
-                        canonical_name=primary_entity.name,
-                        description=f"合并自前缀为'{prefix}'的{entity_type}实体"
-                    )
-                    
-                    entity_groups.append(entity_group)
-        
-        logger.info(f"完成实体去重，创建了 {len(entity_groups)} 个实体分组")
-        return entity_groups
+        return await self.deduplication_service.deduplicate_entities(similarity_threshold)
     
     @handle_db_errors(default_return=[])
     async def deduplicate_relations(self, similarity_threshold: float = 0.8) -> List[RelationGroup]:
@@ -554,60 +551,7 @@ class KnowledgeGraphService:
         Returns:
             List[RelationGroup]: 创建的关系分组列表
         """
-        logger.info(f"开始进行关系去重，相似度阈值: {similarity_threshold}")
-        
-        # 获取所有关系
-        all_relations = await self.relation_service.relation_repo.get_all()
-        logger.info(f"获取到 {len(all_relations)} 个关系进行去重")
-        
-        # 按实体对分组
-        entity_pairs = {}
-        
-        for relation in all_relations:
-            # 创建实体对的键（排序后确保一致性）
-            source_id = relation.source_entity_id
-            target_id = relation.target_entity_id
-            
-            # 确保source_id <= target_id，以便统一排序
-            if source_id > target_id:
-                source_id, target_id = target_id, source_id
-            
-            pair_key = f"{source_id}_{target_id}"
-            
-            if pair_key not in entity_pairs:
-                entity_pairs[pair_key] = []
-            entity_pairs[pair_key].append(relation)
-        
-        # 对每个实体对的关系进行去重
-        relation_groups = []
-        for pair_key, relations in entity_pairs.items():
-            if len(relations) > 1:
-                # 按关系类型分组
-                relation_types = {}
-                
-                for relation in relations:
-                    relation_type = relation.relation_type
-                    if relation_type not in relation_types:
-                        relation_types[relation_type] = []
-                    relation_types[relation_type].append(relation)
-                
-                # 对每种关系类型进行合并
-                for relation_type, type_relations in relation_types.items():
-                    if len(type_relations) > 1:
-                        # 选择权重最高的关系作为主要关系
-                        primary_relation = max(type_relations, key=lambda r: r.weight)
-                        
-                        # 创建关系分组
-                        relation_group = await self.relation_service.merge_relations(
-                            relation_ids=[r.id for r in type_relations],
-                            canonical_relation=relation_type,
-                            description=f"合并自实体对{pair_key}的{relation_type}关系"
-                        )
-                        
-                        relation_groups.append(relation_group)
-        
-        logger.info(f"完成关系去重，创建了 {len(relation_groups)} 个关系分组")
-        return relation_groups
+        return await self.deduplication_service.deduplicate_relations(similarity_threshold)
     
     @handle_db_errors(default_return={})
     async def get_statistics(self) -> Dict[str, Any]:
@@ -617,44 +561,7 @@ class KnowledgeGraphService:
         Returns:
             Dict[str, Any]: 统计信息
         """
-        logger.info("开始获取知识图谱统计信息")
-        
-        # 获取实体统计
-        entity_count = await self.entity_service.entity_repo.count()
-        entity_type_counts = await self.entity_service.entity_repo.count_by_type()
-        
-        # 获取关系统计
-        relation_count = await self.relation_service.relation_repo.count()
-        relation_type_counts = await self.relation_service.relation_repo.count_by_type()
-        
-        # 获取新闻统计
-        news_count = await self.news_service.news_repo.count()
-        news_status_counts = await self.news_service.news_repo.count_by_status()
-        
-        # 获取实体组统计
-        entity_group_count = await self.entity_service.entity_group_repo.count()
-        
-        # 获取关系组统计
-        relation_group_count = await self.relation_service.relation_group_repo.count()
-        
-        statistics = {
-            'entities': {
-                'total': entity_count,
-                'by_type': entity_type_counts
-            },
-            'relations': {
-                'total': relation_count,
-                'by_type': relation_type_counts
-            },
-            'news': {
-                'total': news_count,
-                'by_status': news_status_counts
-            },
-            'entity_groups': entity_group_count,
-            'relation_groups': relation_group_count
-        }
-        logger.info(f"完成获取知识图谱统计信息: {statistics}")
-        return statistics
+        return await self.statistics_service.get_statistics()
     
     @handle_db_errors(default_return=None)
     async def get_news_by_id(self, news_id: int) -> Optional[News]:

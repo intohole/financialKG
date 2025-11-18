@@ -97,8 +97,8 @@ class EntityService:
         """
         return await self.entity_repo.get_by_names(names)
     
-    @handle_db_errors(default_return=[])
-    def find_similar_entities(self, name: str, entity_type: str, threshold: float = 0.8) -> List[Entity]:
+    @handle_db_errors(default_return=[]) 
+    async def find_similar_entities(self, name: str, entity_type: str, threshold: float = 0.8) -> List[Entity]:
         """
         查找相似实体
         
@@ -112,7 +112,7 @@ class EntityService:
         """
         # 这里可以使用更复杂的相似度计算算法，如编辑距离、语义相似度等
         # 简单实现：查找名称包含关键词或类型相同的实体
-        entities = self.entity_repo.search_entities(name)
+        entities = await self.entity_repo.search_entities(name)
         
         # 过滤出相同类型的实体
         same_type_entities = [e for e in entities if e.type == entity_type]
@@ -121,8 +121,8 @@ class EntityService:
         # 返回相似度大于阈值的实体
         return same_type_entities
     
-    @handle_db_errors_with_reraise()
-    def merge_entities(self, entity_ids: List[int], canonical_name: str, 
+    @handle_db_errors_with_reraise() 
+    async def merge_entities(self, entity_ids: List[int], canonical_name: str, 
                       description: Optional[str] = None) -> EntityGroup:
         """
         合并实体，创建实体分组
@@ -136,26 +136,26 @@ class EntityService:
             EntityGroup: 创建的实体分组对象
         """
         # 创建实体分组
-        entity_group = self.entity_group_repo.create(
+        entity_group = await self.entity_group_repo.create(
             group_name=canonical_name,
             description=description
         )
         
         # 更新所有实体的分组ID和规范名称
         for entity_id in entity_ids:
-            entity = self.entity_repo.get(entity_id)
+            entity = await self.entity_repo.get(entity_id)
             if entity:
-                self.entity_repo.update(
+                await self.entity_repo.update(
                     entity_id,
                     entity_group_id=entity_group.id,
                     canonical_name=canonical_name
                 )
         
         # 设置主要实体ID（选择置信度最高的实体）
-        entities = [self.entity_repo.get(eid) for eid in entity_ids if self.entity_repo.get(eid)]
+        entities = [await self.entity_repo.get(eid) for eid in entity_ids if await self.entity_repo.get(eid)]
         if entities:
             primary_entity = max(entities, key=lambda e: e.confidence_score or 0)
-            self.entity_group_repo.update(entity_group.id, primary_entity_id=primary_entity.id)
+            await self.entity_group_repo.update(entity_group.id, primary_entity_id=primary_entity.id)
         
         logger.info(f"合并实体成功: {canonical_name}, 包含 {len(entity_ids)} 个实体")
         return entity_group
@@ -165,26 +165,26 @@ class EntityService:
         """根据ID获取实体"""
         return await self.entity_repo.get(entity_id)
     
-    @handle_db_errors(default_return=[])
-    def get_entities_by_group(self, entity_group_id: int) -> List[Entity]:
+    @handle_db_errors(default_return=[]) 
+    async def get_entities_by_group(self, entity_group_id: int) -> List[Entity]:
         """根据分组ID获取实体"""
-        return self.entity_repo.find_by_group_id(entity_group_id)
+        return await self.entity_repo.find_by_group_id(entity_group_id)
     
     @handle_db_errors(default_return=[])
-    def get_entities_by_type(self, entity_type: str, limit: Optional[int] = None) -> List[Entity]:
+    async def get_entities_by_type(self, entity_type: str, limit: Optional[int] = None) -> List[Entity]:
         """根据类型获取实体"""
-        return self.entity_repo.find_by_type(entity_type)
+        return await self.entity_repo.find_by_type(entity_type)
     
-    @handle_db_errors(default_return=[])
-    def search_entities(self, keyword: str, entity_type: Optional[str] = None, 
+    @handle_db_errors(default_return=[]) 
+    async def search_entities(self, keyword: str, entity_type: Optional[str] = None, 
                        limit: Optional[int] = None) -> List[Entity]:
         """搜索实体"""
-        return self.entity_repo.search_entities(keyword, limit)
+        return await self.entity_repo.search_entities(keyword, entity_type, limit)
     
-    @handle_db_errors(default_return=[])
-    def get_entity_news(self, entity_id: int, limit: Optional[int] = None) -> List[News]:
+    @handle_db_errors(default_return=[]) 
+    async def get_entity_news(self, entity_id: int, limit: Optional[int] = None) -> List[News]:
         """获取实体相关的新闻"""
-        return self.entity_news_repo.get_news_by_entity(entity_id, limit)
+        return await self.entity_news_repo.get_news_by_entity(entity_id, limit)
     
     @handle_db_errors(default_return=None)
     async def update_entity(self, entity_id: int, **kwargs) -> Optional[Entity]:

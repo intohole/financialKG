@@ -69,7 +69,7 @@ class EntityAggregationService(LangChainBaseService):
         entities_str = "\n".join([
             f"- {i+1}. 名称: {entity.get('name', '未知')}, "
             f"类型: {entity.get('type', '未知')}, "
-            f"属性: {entity.get('attributes', {})}"
+            f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
             for i, entity in enumerate(entities)
         ])
         
@@ -122,6 +122,13 @@ class EntityAggregationService(LangChainBaseService):
 - statistics: 聚合统计信息
 """
         
+        # 将实体列表格式化为字符串
+        entities_str = "\n".join([
+            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
+            f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
+            for i, entity in enumerate(filtered_entities)
+        ])
+        
         human_prompt = f"""
 请对以下{entity_type}实体列表进行聚合分析：
 
@@ -135,13 +142,6 @@ class EntityAggregationService(LangChainBaseService):
 5. 返回有效的JSON格式
 """
         
-        # 将实体列表格式化为字符串
-        entities_str = "\n".join([
-            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
-            f"属性: {entity.get('attributes', {})}"
-            for i, entity in enumerate(filtered_entities)
-        ])
-        
         inputs = {"entities": entities_str}
         return self.extract_structured_data(
             type_specific_prompt,
@@ -149,7 +149,7 @@ class EntityAggregationService(LangChainBaseService):
             inputs
         )
     
-    def find_duplicate_entities(self, entities: List[Dict[str, Any]], similarity_threshold: float = 0.8) -> Dict[str, Any]:
+    async def find_duplicate_entities(self, entities: List[Dict[str, Any]], similarity_threshold: float = 0.8) -> Dict[str, Any]:
         """
         查找重复或高度相似的实体
         
@@ -185,6 +185,14 @@ class EntityAggregationService(LangChainBaseService):
 - statistics: 重复统计信息
 """
         
+        # 将实体列表格式化为字符串
+        entities_str = "\n".join([
+            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
+            f"类型: {entity.get('type', '未知')}, "
+            f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
+            for i, entity in enumerate(entities)
+        ])
+        
         human_prompt = f"""
 请从以下实体列表中识别重复或高度相似的实体（相似度阈值: {similarity_threshold}）：
 
@@ -197,16 +205,8 @@ class EntityAggregationService(LangChainBaseService):
 4. 返回有效的JSON格式
 """
         
-        # 将实体列表格式化为字符串
-        entities_str = "\n".join([
-            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
-            f"类型: {entity.get('type', '未知')}, "
-            f"属性: {entity.get('attributes', {})}"
-            for i, entity in enumerate(entities)
-        ])
-        
         inputs = {"entities": entities_str}
-        return self.extract_structured_data(
+        return await self.extract_structured_data(
             duplicate_prompt,
             human_prompt,
             inputs

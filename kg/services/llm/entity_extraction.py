@@ -92,7 +92,7 @@ class EntityExtractionService(LangChainBaseService):
         human_prompt = f"""
 请从以下新闻文本中只抽取{', '.join(entity_types)}类型的实体：
 
-{{text}}
+{text}
 
 请确保：
 1. 只抽取指定类型的实体
@@ -135,7 +135,7 @@ class EntityExtractionService(LangChainBaseService):
 {context}
 
 新闻文本：
-{{text}}
+{text}
 
 请确保：
 1. 结合上下文信息准确抽取实体

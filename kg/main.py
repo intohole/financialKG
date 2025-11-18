@@ -8,13 +8,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # 修复导入路径 - 使用正确的数据库模块路径
 from kg.core.config import BaseConfig
-from kg.database import init_database
+from kg.database import init_database, db_session
 from kg.services.llm_service import LLMService
 from kg.services.integration import (
     DeduplicationServiceRegistry,
     create_deduplication_service_provider,
     register_deduplication_tasks
 )
+# 导入embedding和chroma服务
+from kg.services.embedding_service import create_embedding_service, EmbeddingService
+from kg.services.chroma_service import create_chroma_service, ChromaService
 
 # 配置日志
 logging.basicConfig(
@@ -36,11 +39,15 @@ app = FastAPI(
 )
 
 # 全局配置和服务实例
+from kg.core.config import embedding_config
 config = BaseConfig()
 llm_service = None
+embedding_service = None
+chroma_service = None
 deduplication_service_registry = None
 app.state.scheduler = None
 
+@app.on_event("startup")
 async def initialize_services():
     """初始化所有服务"""
     global llm_service, deduplication_service_registry
@@ -59,18 +66,37 @@ async def initialize_services():
             await llm_service.initialize()
         logger.info("LLM服务初始化完成")
         
+        # 初始化embedding服务
+        logger.info("正在初始化embedding服务...")
+        embedding_service = create_embedding_service(config=embedding_config)
+        if hasattr(embedding_service, 'initialize'):
+            await embedding_service.initialize()
+        logger.info("embedding服务初始化完成")
+        
+        # 初始化chroma服务
+        logger.info("正在初始化chroma服务...")
+        chroma_service = await create_chroma_service()
+        if hasattr(chroma_service, 'initialize'):
+            await chroma_service.initialize()
+        logger.info("chroma服务初始化完成")
+        
         # 初始化去重服务
         logger.info("正在初始化去重服务...")
         deduplication_service_registry = DeduplicationServiceRegistry()
         
-        # 创建去重服务提供者 - 使用db_manager获取会话
-        provider = create_deduplication_service_provider(
-            session_factory=db_manager.get_session,
-            llm_service=llm_service
-        )
+        # 创建数据库会话
+        async with db_session() as session:
+            # 注册去重服务
+            deduplication_service = DeduplicationServiceRegistry.register_service(
+                session=session,
+                llm_service=llm_service,
+                service_id="default",
+                embedding_service=embedding_service,
+                chroma_service=chroma_service
+            )
         
-        # 注册去重服务
-        deduplication_service_registry.register_provider(provider)
+        # 将去重服务存储到app.state
+        app.state.deduplication_service = deduplication_service
         logger.info("去重服务初始化完成")
         
         # 初始化任务调度器和去重定时任务
@@ -204,6 +230,22 @@ async def shutdown_event():
             logger.info("LLM服务已关闭")
         except Exception as e:
             logger.error(f"关闭LLM服务时出错: {str(e)}")
+    
+    # 关闭embedding服务
+    if embedding_service and hasattr(embedding_service, 'shutdown'):
+        try:
+            await embedding_service.shutdown()
+            logger.info("embedding服务已关闭")
+        except Exception as e:
+            logger.error(f"关闭embedding服务时出错: {str(e)}")
+    
+    # 关闭chroma服务
+    if chroma_service and hasattr(chroma_service, 'shutdown'):
+        try:
+            await chroma_service.shutdown()
+            logger.info("chroma服务已关闭")
+        except Exception as e:
+            logger.error(f"关闭chroma服务时出错: {str(e)}")
     
     logger.info("应用已关闭")
 

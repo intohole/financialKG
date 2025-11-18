@@ -101,7 +101,7 @@ class RelationExtractionService(LangChainBaseService):
 {entity_list}
 
 新闻文本：
-{{text}}
+{text}
 
 请确保：
 1. 只抽取给定实体之间的关系
@@ -150,7 +150,7 @@ class RelationExtractionService(LangChainBaseService):
 请从以下新闻文本中只抽取{', '.join(relation_types)}类型的关系：
 
 新闻文本：
-{{text}}
+{text}
 
 请确保：
 1. 只抽取指定类型的关系
@@ -194,7 +194,7 @@ class RelationExtractionService(LangChainBaseService):
 {context}
 
 新闻文本：
-{{text}}
+{text}
 
 请确保：
 1. 结合上下文信息准确抽取关系
