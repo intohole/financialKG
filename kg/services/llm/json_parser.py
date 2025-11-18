@@ -3,7 +3,7 @@ JSON解析器
 用于从LLM响应中解析结构化JSON数据
 """
 from typing import Dict, Any, Optional
-from langchain.schema import BaseOutputParser
+from langchain_core.output_parsers import BaseOutputParser
 import json
 
 

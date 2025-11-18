@@ -57,7 +57,7 @@ class RelationService:
         return relation
     
     @handle_db_errors_with_reraise()
-    def get_or_create_relation(self, source_entity_id: int, target_entity_id: int, 
+    async def get_or_create_relation(self, source_entity_id: int, target_entity_id: int, 
                               relation_type: str, canonical_relation: Optional[str] = None,
                               properties: Optional[Dict[str, Any]] = None, weight: float = 1.0,
                               source: Optional[str] = None) -> Relation:
@@ -76,7 +76,7 @@ class RelationService:
         Returns:
             Relation: 获取或创建的关系对象
         """
-        relation = self.relation_repo.get_or_create(
+        relation = await self.relation_repo.get_or_create(
             source_entity_id=source_entity_id,
             target_entity_id=target_entity_id,
             relation_type=relation_type,

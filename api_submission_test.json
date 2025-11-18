@@ -1,0 +1,65 @@
+{
+  "news_id": 15,
+  "entities": [
+    {
+      "name": "苹果公司",
+      "type": "Organization",
+      "canonical_name": null,
+      "source": "llm"
+    },
+    {
+      "name": "最新财报",
+      "type": "Event",
+      "canonical_name": null,
+      "source": "llm"
+    },
+    {
+      "name": "10%",
+      "type": "Number",
+      "canonical_name": null,
+      "source": "llm"
+    },
+    {
+      "name": "蒂姆·库克",
+      "type": "Person",
+      "canonical_name": null,
+      "source": "llm"
+    },
+    {
+      "name": "未来",
+      "type": "Time",
+      "canonical_name": null,
+      "source": "llm"
+    }
+  ],
+  "relations": [
+    {
+      "source_entity_id": 1,
+      "target_entity_id": 100,
+      "relation_type": "发布者",
+      "canonical_relation": null,
+      "source": "llm"
+    },
+    {
+      "source_entity_id": 100,
+      "target_entity_id": 101,
+      "relation_type": "增长",
+      "canonical_relation": null,
+      "source": "llm"
+    },
+    {
+      "source_entity_id": 11,
+      "target_entity_id": 1,
+      "relation_type": "职位",
+      "canonical_relation": null,
+      "source": "llm"
+    },
+    {
+      "source_entity_id": 11,
+      "target_entity_id": 102,
+      "relation_type": "时间指向",
+      "canonical_relation": null,
+      "source": "llm"
+    }
+  ]
+}

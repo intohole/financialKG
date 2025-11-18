@@ -1,11 +1,10 @@
 #!/path/to/venv/bin/python
 """
-测试新闻处理服务的脚本
+运行新闻处理服务的简单测试脚本
 """
 import asyncio
 import sys
 import os
-import time
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,7 +17,7 @@ from kg.services.news_processing_service import NewsProcessingService
 from kg.services.data_services import KnowledgeGraphService
 from kg.database.connection import init_database_async
 
-async def test_news_processing_service():
+async def test_news_processing():
     """测试新闻处理服务"""
     print("初始化数据库...")
     await init_database_async()
@@ -29,14 +28,15 @@ async def test_news_processing_service():
     print("创建新闻处理服务...")
     news_service = NewsProcessingService(kg_service)
     
-    # 准备测试数据 - 使用唯一的URL避免重复插入
+    # 准备测试数据
+    from datetime import datetime
     test_news_data = {
-        "title": "Apple Unveils New iPhone 15 Series",
-        "content": "Apple today unveiled its highly anticipated iPhone 15 series at a special event held in Cupertino, California. The new lineup includes four models: iPhone 15, iPhone 15 Plus, iPhone 15 Pro, and iPhone 15 Pro Max. Key features include USB-C connectivity, improved cameras, and faster A17 Pro chips for the Pro models. Tim Cook, Apple's CEO, emphasized the company's commitment to sustainability with all new iPhones using 100% recycled rare earth elements in their magnets. The iPhone 15 series is set to go on sale starting September 22, with pre-orders beginning on September 15.",
-        "source": "TechCrunch",
-        "source_url": f"https://techcrunch.com/2023/09/12/apple-iphone-15-series-{int(time.time())}",
+        "title": "苹果公司发布新款iPhone 15系列",
+        "content": "苹果公司今日在加州库比蒂诺特别活动中发布了备受期待的iPhone 15系列。新系列包括四款型号：iPhone 15、iPhone 15 Plus、iPhone 15 Pro和iPhone 15 Pro Max。主要特性包括USB-C连接、改进的摄像头以及Pro型号更快的A17 Pro芯片。苹果公司CEO蒂姆·库克强调了公司对可持续发展的承诺，所有新款iPhone都使用100%回收稀土元素制造磁铁。iPhone 15系列将于9月22日开始销售，9月15日开始预购。",
+        "source": "科技新闻",
+        "source_url": f"https://example.com/news/apple-iphone-15-{datetime.now().strftime('%Y%m%d%H%M%S')}",
         "publish_date": "2023-09-12T10:30:00Z",
-        "author": "John Doe"
+        "author": "张三"
     }
     
     print("开始处理测试新闻...")
@@ -74,4 +74,4 @@ async def test_news_processing_service():
         traceback.print_exc()
 
 if __name__ == "__main__":
-    asyncio.run(test_news_processing_service())
+    asyncio.run(test_news_processing())

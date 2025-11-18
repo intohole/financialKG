@@ -87,7 +87,13 @@ class BaseRepository:
         if instance:
             for key, value in kwargs.items():
                 setattr(instance, key, value)
-            await self.session.flush()
+            
+            if self.session and not isinstance(self.session, AsyncIterator):
+                await self.session.flush()
+            else:
+                async with db_session() as session:
+                    await session.flush()
+                    
         return instance
     
     @handle_db_errors_with_reraise()
@@ -95,8 +101,13 @@ class BaseRepository:
         """删除记录"""
         instance = await self.get(id)
         if instance:
-            await self.session.delete(instance)
-            await self.session.flush()
+            if self.session and not isinstance(self.session, AsyncIterator):
+                await self.session.delete(instance)
+                await self.session.flush()
+            else:
+                async with db_session() as session:
+                    await session.delete(instance)
+                    await session.flush()
             return True
         return False
     
@@ -183,6 +194,22 @@ class EntityRepository(BaseRepository):
         return query.all()
     
     @handle_db_errors(default_return=[])
+    async def get_by_names(self, names: List[str]) -> List[Entity]:
+        """根据名称列表批量获取实体"""
+        if not names:
+            return []
+            
+        stmt = select(Entity).where(Entity.name.in_(names))
+        
+        if self.session and not isinstance(self.session, AsyncIterator):
+            result = await self.session.execute(stmt)
+            return result.scalars().all()
+        else:
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                return result.scalars().all()
+    
+    @handle_db_errors(default_return=[])
     def find_by_canonical_name(self, canonical_name: str) -> List[Entity]:
         """根据规范名称查找实体"""
         return self.session.query(Entity).filter(Entity.canonical_name == canonical_name).all()
@@ -221,18 +248,37 @@ class EntityRepository(BaseRepository):
         stmt = select(Entity).where(
             and_(Entity.name == name, Entity.type == entity_type)
         )
-        result = await self.session.execute(stmt)
-        entity = result.scalar_one_or_none()
         
-        if not entity:
-            # 处理properties字段，如果是字典则转换为JSON字符串
-            if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
-                kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+        if self.session and not isinstance(self.session, AsyncIterator):
+            # 使用提供的会话
+            result = await self.session.execute(stmt)
+            entity = result.scalar_one_or_none()
             
-            entity = Entity(name=name, type=entity_type, **kwargs)
-            self.session.add(entity)
-            await self.session.flush()
-            logger.debug(f"创建新实体: {name}, 类型: {entity_type}")
+            if not entity:
+                # 处理properties字段，如果是字典则转换为JSON字符串
+                if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
+                    kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+                
+                entity = Entity(name=name, type=entity_type, **kwargs)
+                self.session.add(entity)
+                await self.session.flush()
+                logger.debug(f"创建新实体: {name}, 类型: {entity_type}")
+        else:
+            # 创建新会话
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                entity = result.scalar_one_or_none()
+                
+                if not entity:
+                    # 处理properties字段，如果是字典则转换为JSON字符串
+                    if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
+                        kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+                    
+                    entity = Entity(name=name, type=entity_type, **kwargs)
+                    session.add(entity)
+                    await session.flush()
+                    logger.debug(f"创建新实体: {name}, 类型: {entity_type}")
+        
         return entity
 
 
@@ -289,29 +335,56 @@ class RelationRepository(BaseRepository):
         return self.session.query(Relation).filter(Relation.canonical_relation == canonical_relation).all()
     
     @handle_db_errors_with_reraise()
-    def get_or_create(self, source_entity_id: int, target_entity_id: int, 
+    async def get_or_create(self, source_entity_id: int, target_entity_id: int, 
                      relation_type: str, **kwargs) -> Relation:
         """获取或创建关系"""
-        relation = self.session.query(Relation).filter(
+        from sqlalchemy import select
+        stmt = select(Relation).where(
             and_(Relation.source_entity_id == source_entity_id, 
                  Relation.target_entity_id == target_entity_id,
                  Relation.relation_type == relation_type)
-        ).first()
+        )
         
-        if not relation:
-            # 处理properties字段
-            if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
-                kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+        if self.session and not isinstance(self.session, AsyncIterator):
+            # 使用提供的会话
+            result = await self.session.execute(stmt)
+            relation = result.scalar_one_or_none()
             
-            relation = Relation(
-                source_entity_id=source_entity_id,
-                target_entity_id=target_entity_id,
-                relation_type=relation_type,
-                **kwargs
-            )
-            self.session.add(relation)
-            self.session.flush()
-            logger.debug(f"创建新关系: {source_entity_id} -> {target_entity_id}, 类型: {relation_type}")
+            if not relation:
+                # 处理properties字段
+                if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
+                    kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+                
+                relation = Relation(
+                    source_entity_id=source_entity_id,
+                    target_entity_id=target_entity_id,
+                    relation_type=relation_type,
+                    **kwargs
+                )
+                self.session.add(relation)
+                await self.session.flush()
+                logger.debug(f"创建新关系: {source_entity_id} -> {target_entity_id}, 类型: {relation_type}")
+        else:
+            # 创建新会话
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                relation = result.scalar_one_or_none()
+                
+                if not relation:
+                    # 处理properties字段
+                    if 'properties' in kwargs and isinstance(kwargs['properties'], dict):
+                        kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+                    
+                    relation = Relation(
+                        source_entity_id=source_entity_id,
+                        target_entity_id=target_entity_id,
+                        relation_type=relation_type,
+                        **kwargs
+                    )
+                    session.add(relation)
+                    await session.flush()
+                    logger.debug(f"创建新关系: {source_entity_id} -> {target_entity_id}, 类型: {relation_type}")
+        
         return relation
 
 
@@ -400,8 +473,16 @@ class EntityNewsRepository(BaseRepository):
         stmt = select(EntityNews).filter(
             and_(EntityNews.entity_id == entity_id, EntityNews.news_id == news_id)
         )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        
+        if self.session and not isinstance(self.session, AsyncIterator):
+            # 使用提供的会话
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
+        else:
+            # 创建新会话
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                return result.scalar_one_or_none()
     
     @handle_db_errors_with_reraise()
     async def get_or_create(self, entity_id: int, news_id: int, **kwargs) -> EntityNews:
@@ -418,9 +499,18 @@ class EntityNewsRepository(BaseRepository):
                 news_id=news_id,
                 **kwargs
             )
-            self.session.add(entity_news)
-            await self.session.flush()
-            logger.debug(f"创建新实体-新闻关联: entity_id={entity_id}, news_id={news_id}")
+            
+            if self.session and not isinstance(self.session, AsyncIterator):
+                # 使用提供的会话
+                self.session.add(entity_news)
+                await self.session.flush()
+                logger.debug(f"创建新实体-新闻关联: entity_id={entity_id}, news_id={news_id}")
+            else:
+                # 创建新会话
+                async with db_session() as session:
+                    session.add(entity_news)
+                    await session.flush()
+                    logger.debug(f"创建新实体-新闻关联: entity_id={entity_id}, news_id={news_id}")
         
         return entity_news
 

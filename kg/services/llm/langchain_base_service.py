@@ -4,8 +4,8 @@ LangChain基础服务
 """
 from typing import Dict, Any, List, Optional
 from abc import ABC, abstractmethod
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
-from langchain.chains import LLMChain
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
 from .base_service import BaseLLMService
 from .langchain_config import langchain_config
 from .json_parser import json_parser
@@ -62,7 +62,7 @@ class LangChainBaseService(BaseLLMService):
             ("human", human_template)
         ])
     
-    def create_chain(self, prompt: PromptTemplate) -> LLMChain:
+    def create_chain(self, prompt: PromptTemplate):
         """
         创建LLM链
         
@@ -70,16 +70,16 @@ class LangChainBaseService(BaseLLMService):
             prompt: 提示词模板
             
         Returns:
-            LLMChain实例
+            可运行链实例
         """
-        return LLMChain(llm=self.llm, prompt=prompt)
+        return prompt | self.llm | RunnablePassthrough()
     
-    def run_chain(self, chain: LLMChain, input_data: dict) -> Dict[str, Any]:
+    def run_chain(self, chain, input_data: dict) -> Dict[str, Any]:
         """
         运行LLM链
         
         Args:
-            chain: LLM链实例
+            chain: 可运行链实例
             input_data: 输入数据
             
         Returns:
@@ -108,14 +108,14 @@ class LangChainBaseService(BaseLLMService):
             ("human", human_prompt)
         ])
         
-        # 创建LLM链
-        chain = LLMChain(llm=self.llm, prompt=chat_prompt)
+        # 创建可运行链
+        chain = chat_prompt | self.llm
         
-        # 运行LLM链
+        # 运行链
         response = await chain.ainvoke(input_data)
         
         # 解析JSON结果
-        return self.json_parser.parse(response["text"])
+        return self.json_parser.parse(response.content)
 
     async def generate_response(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
@@ -130,12 +130,12 @@ class LangChainBaseService(BaseLLMService):
         """
         # 转换为LangChain格式
         chat_prompt = ChatPromptTemplate.from_messages(messages)
-        chain = LLMChain(llm=self.llm, prompt=chat_prompt)
+        chain = chat_prompt | self.llm
         response = chain.invoke({})
         
         # 标准化响应格式
         return {
-            "content": response["text"],
+            "content": response.content,
             "model": self.llm_config.model,
             "prompt_tokens": 0,
             "completion_tokens": 0,

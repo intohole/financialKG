@@ -26,22 +26,22 @@ class KnowledgeGraphService:
         self.news_service = NewsService(self.session)
     
     @handle_db_errors_with_reraise()
-    async def create_news(self, title: str, content: str, source: str = "unknown", publish_time: Optional[datetime] = None, author: str = None, url: str = None) -> News:
+    async def create_news(self, title: str, content: str, url: str = None, publish_time: Optional[datetime] = None, source: str = "unknown", author: str = None) -> News:
         """
         创建新闻
         
         Args:
             title: 新闻标题
             content: 新闻内容
-            source: 新闻来源（默认：unknown）
-            publish_time: 发布时间（默认：当前时间）
-            author: 作者（可选）
             url: 新闻URL（可选）
+            publish_time: 发布时间（默认：当前时间）
+            source: 新闻来源（默认：unknown）
+            author: 作者（可选）
             
         Returns:
             News: 创建的新闻对象
         """
-        return await self.news_service.create_news(title, content, url, publish_time, source)
+        return await self.news_service.create_news(title, content, url, publish_time, source, author)
     
     @handle_db_errors(default_return=(None, [], []))
     async def store_llm_extracted_data(self, news_id: int, entities: List[Dict[str, Any]], relations: List[Dict[str, Any]]) -> Tuple[Optional[News], List[Entity], List[Relation]]:
@@ -64,9 +64,10 @@ class KnowledgeGraphService:
             logger.error(f"新闻不存在，新闻ID: {news_id}")
             return (None, [], [])
         
-        # 存储实体并建立映射关系
+        # 批量存储实体并建立映射关系
         stored_entities = []
         entity_map = {}  # 用于将实体名称映射到ID
+        entity_news_links = []  # 收集所有实体-新闻关联
         
         for entity in entities:
             entity_name = entity.get("name")
@@ -89,14 +90,37 @@ class KnowledgeGraphService:
                 stored_entities.append(db_entity)
                 entity_map[entity_name] = db_entity.id
                 
-                # 建立实体与新闻的关联
-                await self.news_service.link_entity_to_news(news_id, db_entity.id)
+                # 收集实体与新闻的关联数据
+                entity_news_links.append({
+                    "entity_id": db_entity.id,
+                    "news_id": news_id,
+                    "properties": properties
+                })
+        
+        # 批量创建实体-新闻关联
+        if entity_news_links:
+            await self._batch_create_entity_news_links(entity_news_links)
         
         logger.info(f"存储实体完成，共 {len(stored_entities)} 个实体")
         
-        # 存储关系
+        # 批量存储关系
         stored_relations = []
         
+        # 首先收集所有需要的实体名称
+        entity_names = set()
+        for relation in relations:
+            source_name = relation.get("source_entity")
+            target_name = relation.get("target_entity")
+            if source_name:
+                entity_names.add(source_name)
+            if target_name:
+                entity_names.add(target_name)
+        
+        # 批量获取已存在的实体，避免重复查询
+        existing_entities = await self._batch_get_entities_by_names(list(entity_names))
+        existing_entity_map = {e.name: e for e in existing_entities}
+        
+        # 创建关系
         for relation in relations:
             source_name = relation.get("source_entity")
             target_name = relation.get("target_entity")
@@ -104,8 +128,9 @@ class KnowledgeGraphService:
             confidence = relation.get("confidence", 1.0)
             
             if source_name and target_name and relation_type:
-                source_id = entity_map.get(source_name)
-                target_id = entity_map.get(target_name)
+                # 优先从已存在的实体中获取
+                source_id = entity_map.get(source_name) or (existing_entity_map.get(source_name).id if existing_entity_map.get(source_name) else None)
+                target_id = entity_map.get(target_name) or (existing_entity_map.get(target_name).id if existing_entity_map.get(target_name) else None)
                 
                 if source_id and target_id:
                     # 使用get_or_create_relation方法，自动检查并创建关系
@@ -118,6 +143,7 @@ class KnowledgeGraphService:
                         source="llm"
                     )
                     stored_relations.append(new_relation)
+        
         logger.info(f"存储关系完成，共 {len(stored_relations)} 个关系")
         
         # 更新新闻状态为已提取
@@ -126,46 +152,67 @@ class KnowledgeGraphService:
         logger.info(f"存储LLM提取的数据完成，新闻ID: {news_id}")
         return (news, stored_entities, stored_relations)
     
-    @handle_db_errors_with_reraise()
-    def extract_and_store_entities(self, news_id: int, entities: List[Dict[str, Any]]) -> List[Entity]:
+    async def _batch_create_entity_news_links(self, entity_news_links: List[Dict[str, Any]]) -> None:
         """
-        从新闻中提取并存储实体
+        批量创建实体-新闻关联
+        
+        Args:
+            entity_news_links: 实体-新闻关联数据列表
+        """
+        for link_data in entity_news_links:
+            await self.news_service.link_entity_to_news(
+                news_id=link_data["news_id"],
+                entity_id=link_data["entity_id"]
+            )
+    
+    async def _batch_get_entities_by_names(self, entity_names: List[str]) -> List[Entity]:
+        """
+        批量根据名称获取实体
+        
+        Args:
+            entity_names: 实体名称列表
+            
+        Returns:
+            List[Entity]: 实体列表
+        """
+        # 使用正确的方法名get_entities_by_names进行批量查询
+        entities = await self.entity_service.get_entities_by_names(entity_names)
+        return entities
+    
+    @handle_db_errors_with_reraise()
+    async def extract_and_store_entities(self, news_id: int, entities: List[Dict[str, Any]]) -> List[Entity]:
+        """
+        提取并存储实体
         
         Args:
             news_id: 新闻ID
-            entities: 实体列表，每个实体包含name、type等属性
+            entities: 实体列表
             
         Returns:
-            List[Entity]: 创建或获取的实体列表
+            List[Entity]: 存储的实体列表
         """
-        logger.info(f"开始从新闻 {news_id} 中提取并存储 {len(entities)} 个实体")
         stored_entities = []
         
         for entity_data in entities:
-            # 获取或创建实体
-            entity = self.entity_service.get_or_create_entity(
-                name=entity_data.get('name'),
-                entity_type=entity_data.get('type'),
-                canonical_name=entity_data.get('canonical_name'),
-                properties=entity_data.get('properties'),
-                confidence_score=entity_data.get('confidence_score', 0.0),
-                source=entity_data.get('source')
+            # 创建或获取实体
+            entity = await self.entity_service.get_or_create_entity(
+                name=entity_data.get("name", ""),
+                entity_type=entity_data.get("type", ""),
+                properties=entity_data.get("properties", {})
             )
+            stored_entities.append(entity)
             
-            # 将实体链接到新闻
-            self.news_service.link_entity_to_news(
+            # 建立新闻与实体的关联
+            await self.news_service.link_entity_to_news(
                 entity_id=entity.id,
                 news_id=news_id,
-                context=entity_data.get('context')
+                context=entity_data.get("context")
             )
-            
-            stored_entities.append(entity)
         
-        logger.info(f"成功从新闻 {news_id} 中提取并存储 {len(stored_entities)} 个实体")
         return stored_entities
     
     @handle_db_errors_with_reraise()
-    def extract_and_store_relations(self, news_id: int, relations: List[Dict[str, Any]]) -> List[Relation]:
+    async def extract_and_store_relations(self, news_id: int, relations: List[Dict[str, Any]]) -> List[Relation]:
         """
         从新闻中提取并存储关系
         
@@ -181,7 +228,7 @@ class KnowledgeGraphService:
         
         for relation_data in relations:
             # 获取或创建源实体和目标实体
-            source_entity = self.entity_service.get_or_create_entity(
+            source_entity = await self.entity_service.get_or_create_entity(
                 name=relation_data.get('source_entity').get('name'),
                 entity_type=relation_data.get('source_entity').get('type'),
                 canonical_name=relation_data.get('source_entity').get('canonical_name'),
@@ -190,7 +237,7 @@ class KnowledgeGraphService:
                 source=relation_data.get('source_entity').get('source')
             )
             
-            target_entity = self.entity_service.get_or_create_entity(
+            target_entity = await self.entity_service.get_or_create_entity(
                 name=relation_data.get('target_entity').get('name'),
                 entity_type=relation_data.get('target_entity').get('type'),
                 canonical_name=relation_data.get('target_entity').get('canonical_name'),
@@ -200,7 +247,7 @@ class KnowledgeGraphService:
             )
             
             # 获取或创建关系
-            relation = self.relation_service.get_or_create_relation(
+            relation = await self.relation_service.get_or_create_relation(
                 source_entity_id=source_entity.id,
                 target_entity_id=target_entity.id,
                 relation_type=relation_data.get('type'),
@@ -211,13 +258,13 @@ class KnowledgeGraphService:
             )
             
             # 将源实体和目标实体链接到新闻
-            self.news_service.link_entity_to_news(
+            await self.news_service.link_entity_to_news(
                 entity_id=source_entity.id,
                 news_id=news_id,
                 context=relation_data.get('context')
             )
             
-            self.news_service.link_entity_to_news(
+            await self.news_service.link_entity_to_news(
                 entity_id=target_entity.id,
                 news_id=news_id,
                 context=relation_data.get('context')
@@ -229,7 +276,7 @@ class KnowledgeGraphService:
         return stored_relations
     
     @handle_db_errors_with_reraise()
-    def process_news(self, news_id: int, entities: List[Dict[str, Any]], 
+    async def process_news(self, news_id: int, entities: List[Dict[str, Any]], 
                     relations: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         处理新闻，提取并存储实体和关系
@@ -245,13 +292,13 @@ class KnowledgeGraphService:
         logger.info(f"开始处理新闻 {news_id}，包含 {len(entities)} 个实体和 {len(relations)} 个关系")
         
         # 提取并存储实体
-        stored_entities = self.extract_and_store_entities(news_id, entities)
+        stored_entities = await self.extract_and_store_entities(news_id, entities)
         
         # 提取并存储关系
-        stored_relations = self.extract_and_store_relations(news_id, relations)
+        stored_relations = await self.extract_and_store_relations(news_id, relations)
         
         # 更新新闻的提取状态
-        self.news_service.update_extraction_status(news_id, 'completed')
+        await self.news_service.update_news(news_id, extraction_status='completed')
         
         result = {
             'news_id': news_id,
@@ -265,7 +312,7 @@ class KnowledgeGraphService:
         return result
     
     @handle_db_errors(default_return={})
-    def get_entity_neighbors(self, entity_id: int, max_depth: int = 1) -> Dict[str, Any]:
+    async def get_entity_neighbors(self, entity_id: int, max_depth: int = 1) -> Dict[str, Any]:
         """
         获取实体的邻居节点
         
@@ -279,7 +326,7 @@ class KnowledgeGraphService:
         logger.info(f"开始获取实体 {entity_id} 的邻居节点，最大深度: {max_depth}")
         
         # 获取实体信息
-        entity = self.entity_service.get_entity_by_id(entity_id)
+        entity = await self.entity_service.get_entity_by_id(entity_id)
         if not entity:
             logger.warning(f"未找到实体 {entity_id}")
             return {}
@@ -302,7 +349,7 @@ class KnowledgeGraphService:
                 continue
             
             # 获取当前实体的所有关系
-            relations = self.relation_service.get_relations_by_entity(current_entity_id)
+            relations = await self.relation_service.get_relations_by_entity(current_entity_id)
             
             for relation in relations:
                 # 确定邻居实体ID
@@ -314,7 +361,7 @@ class KnowledgeGraphService:
                     queue.append((neighbor_id, depth + 1))
                     
                     # 获取邻居实体信息
-                    neighbor_entity = self.entity_service.get_entity_by_id(neighbor_id)
+                    neighbor_entity = await self.entity_service.get_entity_by_id(neighbor_id)
                     if neighbor_entity:
                         result['neighbors'][neighbor_id] = {
                             'entity': neighbor_entity.to_dict(),
@@ -335,7 +382,7 @@ class KnowledgeGraphService:
         return result
     
     @handle_db_errors(default_return=[])
-    def deduplicate_entities(self, similarity_threshold: float = 0.8) -> List[EntityGroup]:
+    async def deduplicate_entities(self, similarity_threshold: float = 0.8) -> List[EntityGroup]:
         """
         实体去重
         
@@ -348,7 +395,7 @@ class KnowledgeGraphService:
         logger.info(f"开始进行实体去重，相似度阈值: {similarity_threshold}")
         
         # 获取所有实体
-        all_entities = self.entity_service.entity_repo.get_all()
+        all_entities = await self.entity_service.entity_repo.get_all()
         logger.info(f"获取到 {len(all_entities)} 个实体进行去重")
         
         # 按类型分组
@@ -381,7 +428,7 @@ class KnowledgeGraphService:
                     primary_entity = max(group_entities, key=lambda e: e.confidence_score)
                     
                     # 创建实体分组
-                    entity_group = self.entity_service.merge_entities(
+                    entity_group = await self.entity_service.merge_entities(
                         entity_ids=[e.id for e in group_entities],
                         canonical_name=primary_entity.name,
                         description=f"合并自前缀为'{prefix}'的{entity_type}实体"
@@ -393,7 +440,7 @@ class KnowledgeGraphService:
         return entity_groups
     
     @handle_db_errors(default_return=[])
-    def deduplicate_relations(self, similarity_threshold: float = 0.8) -> List[RelationGroup]:
+    async def deduplicate_relations(self, similarity_threshold: float = 0.8) -> List[RelationGroup]:
         """
         关系去重
         
@@ -406,7 +453,7 @@ class KnowledgeGraphService:
         logger.info(f"开始进行关系去重，相似度阈值: {similarity_threshold}")
         
         # 获取所有关系
-        all_relations = self.relation_service.relation_repo.get_all()
+        all_relations = await self.relation_service.relation_repo.get_all()
         logger.info(f"获取到 {len(all_relations)} 个关系进行去重")
         
         # 按实体对分组
@@ -447,7 +494,7 @@ class KnowledgeGraphService:
                         primary_relation = max(type_relations, key=lambda r: r.weight)
                         
                         # 创建关系分组
-                        relation_group = self.relation_service.merge_relations(
+                        relation_group = await self.relation_service.merge_relations(
                             relation_ids=[r.id for r in type_relations],
                             canonical_relation=relation_type,
                             description=f"合并自实体对{pair_key}的{relation_type}关系"
@@ -459,7 +506,7 @@ class KnowledgeGraphService:
         return relation_groups
     
     @handle_db_errors(default_return={})
-    def get_statistics(self) -> Dict[str, Any]:
+    async def get_statistics(self) -> Dict[str, Any]:
         """
         获取知识图谱统计信息
         
@@ -469,22 +516,22 @@ class KnowledgeGraphService:
         logger.info("开始获取知识图谱统计信息")
         
         # 获取实体统计
-        entity_count = self.entity_service.entity_repo.count()
-        entity_type_counts = self.entity_service.entity_repo.count_by_type()
+        entity_count = await self.entity_service.entity_repo.count()
+        entity_type_counts = await self.entity_service.entity_repo.count_by_type()
         
         # 获取关系统计
-        relation_count = self.relation_service.relation_repo.count()
-        relation_type_counts = self.relation_service.relation_repo.count_by_type()
+        relation_count = await self.relation_service.relation_repo.count()
+        relation_type_counts = await self.relation_service.relation_repo.count_by_type()
         
         # 获取新闻统计
-        news_count = self.news_service.news_repo.count()
-        news_status_counts = self.news_service.news_repo.count_by_status()
+        news_count = await self.news_service.news_repo.count()
+        news_status_counts = await self.news_service.news_repo.count_by_status()
         
         # 获取实体组统计
-        entity_group_count = self.entity_service.entity_group_repo.count()
+        entity_group_count = await self.entity_service.entity_group_repo.count()
         
         # 获取关系组统计
-        relation_group_count = self.relation_service.relation_group_repo.count()
+        relation_group_count = await self.relation_service.relation_group_repo.count()
         
         statistics = {
             'entities': {

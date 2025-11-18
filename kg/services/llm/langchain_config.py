@@ -5,9 +5,9 @@
 import os
 from typing import Optional, Dict, Any
 from langchain_openai import ChatOpenAI
-from langchain.schema import BaseOutputParser
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
-from langchain.chains import LLMChain
+from langchain_core.output_parsers import BaseOutputParser
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
 import yaml
 from pathlib import Path
 from kg.core.config import BaseConfig
@@ -81,7 +81,7 @@ class LangChainConfig(BaseConfig):
             ("human", human_template)
         ])
     
-    def create_chain(self, prompt: PromptTemplate) -> LLMChain:
+    def create_chain(self, prompt: PromptTemplate):
         """
         创建LLM链
         
@@ -89,9 +89,9 @@ class LangChainConfig(BaseConfig):
             prompt: 提示词模板
             
         Returns:
-            LLMChain实例
+            可运行链实例
         """
-        return LLMChain(llm=self.get_llm(), prompt=prompt)
+        return prompt | self.get_llm() | RunnablePassthrough()
 
 
 class JsonOutputParser(BaseOutputParser):

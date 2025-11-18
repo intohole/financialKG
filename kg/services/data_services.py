@@ -19,10 +19,10 @@ from kg.database.connection import get_db_session, db_session
 from kg.utils.db_utils import handle_db_errors, handle_db_errors_with_reraise, jsonify_properties
 
 # 从新的数据库服务模块导入类
-from .database.entity_service import EntityService
-from .database.relation_service import RelationService
-from .database.news_service import NewsService
-from .database.knowledge_graph_service import KnowledgeGraphService
+from kg.services.database.entity_service import EntityService
+from kg.services.database.relation_service import RelationService
+from kg.services.entity_relation_deduplication_service import EntityRelationDeduplicationService
+from kg.services.integration import DeduplicationServiceRegistry, create_deduplication_service_provider, register_deduplication_tasks
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -33,5 +33,9 @@ __all__ = [
     'EntityService',
     'RelationService',
     'NewsService',
-    'KnowledgeGraphService'
+    'KnowledgeGraphService',
+    'EntityRelationDeduplicationService',
+    'DeduplicationServiceRegistry',
+    'create_deduplication_service_provider',
+    'register_deduplication_tasks'
 ]

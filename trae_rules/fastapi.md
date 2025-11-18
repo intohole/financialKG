@@ -1,28 +1,5 @@
 # FastAPI框架规范
 
-## 1. 项目结构
-```
-project_root/
-├── core/                 # 项目核心目录（根据实际项目名称调整）
-│   ├── api/              # API路由模块
-│   │   ├── v1/           # API版本1
-│   │   └── v2/           # API版本2
-│   ├── config/           # 核心配置和工具
-│   ├── database/         # 数据库相关模块
-│   ├── models/           # 数据模型
-│   ├── services/         # 业务逻辑层
-│   └── utils/            # 通用工具模块
-├── tests/                # 测试文件目录
-│   ├── api/              # API测试
-│   ├── database/         # 数据库测试
-│   └── services/         # 业务逻辑测试
-├── config/               # 配置文件目录
-├── .trae/                # Trae AI相关配置
-├── requirements.txt       # 依赖管理
-├── README.md             # 项目说明文档
-└── main.py               # 应用入口文件
-```
-
 FastAPI项目结构应遵循以下原则：
 1. **模块化设计**：按照功能模块组织代码，提高可维护性
 2. **清晰分层**：分离路由、业务逻辑和数据模型
@@ -37,47 +14,6 @@ FastAPI项目结构应遵循以下原则：
 - **路由前缀**: 为每个版本设置统一的路由前缀
 - **路由标签**: 使用 `tags` 参数为路由分组，便于文档组织
 
-### 2.1 FastAPI路由定义示例
-```python
-# core/api/v1/users.py
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
-
-from core.database import get_session
-from core.schemas.user import User, UserCreate
-from core.services.user_service import UserService
-
-router = APIRouter(prefix="/v1/users", tags=["users"])
-
-service = UserService()
-
-@router.get("/", response_model=List[User])
-async def get_users(session: AsyncSession = Depends(get_session), skip: int = 0, limit: int = 100):
-    """获取用户列表"""
-    return await service.get_users(session, skip=skip, limit=limit)
-
-@router.get("/{user_id}", response_model=User)
-async def get_user(user_id: int, session: AsyncSession = Depends(get_session)):
-    """获取单个用户"""
-    user = await service.get_user(session, user_id=user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
-@router.post("/", response_model=User, status_code=201)
-async def create_user(user: UserCreate, session: AsyncSession = Depends(get_session)):
-    """创建用户"""
-    return await service.create_user(session, user=user)
-```
-
-## 3. 请求与响应处理
-请求与响应处理应遵循通用API设计规范（参考 `api_design.md`），以下是FastAPI特定的请求与响应处理规范：
-
-- **请求体**: 使用Pydantic模型定义请求结构
-- **响应模型**: 使用Pydantic模型定义响应结构
-- **参数验证**: FastAPI自动验证请求参数（路径、查询、请求体）
-- **类型注解**: 必须为所有函数和参数添加类型注解
 
 ### 3.1 FastAPI Pydantic模型示例
 ```python
@@ -131,32 +67,8 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 - **全局中间件**: 应用于所有请求和响应
 - **功能中间件**: 实现日志记录、性能监控、CORS等功能
 
-### 5.1 中间件示例
-```python
-# core/main.py
-from fastapi import FastAPI
-from starlette.middleware.cors import CORSMiddleware
-import logging
 
-app = FastAPI(title="My API", version="v1")
 
-# 配置CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] ,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 自定义日志中间件
-@app.middleware("http")
-async def log_request(request, call_next):
-    logging.info(f"Request: {request.method} {request.url}")
-    response = await call_next(request)
-    logging.info(f"Response: {response.status_code}")
-    return response
-```
 
 ## 6. 错误处理
 - **HTTP异常**: 使用`HTTPException`处理API异常
@@ -250,45 +162,6 @@ class UserService:
 - **API测试**: 使用`httpx`库测试API端点
 - **测试文件结构**: 测试文件与源代码文件结构保持一致
 
-### 9.1 API测试示例
-```python
-# tests/api/v1/test_users.py
-import pytest
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-
-from core.main import app
-from core.models.base import Base
-from core.database.connection import AsyncSessionLocal
-from core.schemas.user import UserCreate
-
-TEST_DATABASE_URL = "postgresql+asyncpg://test:test@localhost/test_db"
-
-@pytest.mark.asyncio
-async def test_create_user():
-    # 创建测试数据库
-    engine = create_async_engine(TEST_DATABASE_URL)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    # 创建测试会话
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
-    # 测试API
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        # 创建用户
-        user_data = {"name": "test", "email": "test@example.com", "password": "testpass"}
-        response = await client.post("/v1/users/", json=user_data)
-        assert response.status_code == 201
-        assert response.json()["name"] == "test"
-        assert response.json()["email"] == "test@example.com"
-    
-    # 清理测试数据库
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
-```
 
 ## 10. 最佳实践
 - **单一职责原则**: 每个路由文件和服务类只负责一个功能

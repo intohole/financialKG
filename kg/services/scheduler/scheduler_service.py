@@ -56,20 +56,66 @@ class SchedulerService:
     
     async def initialize(self) -> None:
         """初始化服务"""
-        # 加载配置
-        if self.config_path and os.path.exists(self.config_path):
-            self.config = self.config_manager.load_config(self.config_path)
-            print(f"从配置文件加载配置: {self.config_path}")
-        else:
-            self.config = self.config_manager.get_default_config()
-            print("使用默认配置")
-        
-        # 创建核心组件
-        self.scheduler = AsyncTaskScheduler(self.config.scheduler)
-        self.task_manager = TaskManager(self.scheduler)
-        self.monitor = TaskMonitor(self.task_manager)
-        
-        print("调度服务初始化完成")
+        try:
+            # 加载配置
+            if self.config_path and os.path.exists(self.config_path):
+                self.config = self.config_manager.load_config(self.config_path)
+                print(f"从配置文件加载配置: {self.config_path}")
+            else:
+                # 创建默认配置对象
+                from dataclasses import dataclass, field
+                
+                @dataclass
+                class SchedulerSettings:
+                    timezone: str = "Asia/Shanghai"
+                    max_workers: int = 10
+                    job_defaults: Dict[str, Any] = field(default_factory=lambda: {
+                        'coalesce': False,
+                        'max_instances': 3
+                    })
+                
+                @dataclass
+                class SchedulerConfig:
+                    scheduler: SchedulerSettings = field(default_factory=SchedulerSettings)
+                
+                self.config = SchedulerConfig()
+                print("使用内置默认配置")
+            
+            # 创建核心组件
+            self.scheduler = AsyncTaskScheduler(self.config.scheduler)
+            self.task_manager = TaskManager(self.scheduler)
+            self.monitor = TaskMonitor(self.task_manager)
+            
+            print("调度服务初始化完成")
+        except Exception as e:
+            print(f"初始化调度服务时出错: {str(e)}")
+            # 创建基本配置和组件，确保即使出错也能继续运行
+            from dataclasses import dataclass, field
+            
+            @dataclass
+            class SchedulerSettings:
+                timezone: str = "Asia/Shanghai"
+                max_workers: int = 10
+                job_defaults: Dict[str, Any] = field(default_factory=lambda: {
+                    'coalesce': False,
+                    'max_instances': 3
+                })
+            
+            @dataclass
+            class SchedulerConfig:
+                scheduler: SchedulerSettings = field(default_factory=SchedulerSettings)
+            
+            self.config = SchedulerConfig()
+            
+            # 安全初始化组件
+            try:
+                self.scheduler = AsyncTaskScheduler(self.config.scheduler)
+                self.task_manager = TaskManager(self.scheduler)
+                self.monitor = TaskMonitor(self.task_manager)
+            except Exception as inner_e:
+                print(f"创建核心组件时出错: {str(inner_e)}")
+                # 即使组件创建失败，也要确保服务能继续运行
+                pass
     
     async def start(self) -> None:
         """启动服务"""

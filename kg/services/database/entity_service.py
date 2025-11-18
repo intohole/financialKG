@@ -85,6 +85,19 @@ class EntityService:
         return entity
     
     @handle_db_errors(default_return=[])
+    async def get_entities_by_names(self, names: List[str]) -> List[Entity]:
+        """
+        根据名称列表批量获取实体
+        
+        Args:
+            names: 实体名称列表
+            
+        Returns:
+            List[Entity]: 实体列表
+        """
+        return await self.entity_repo.get_by_names(names)
+    
+    @handle_db_errors(default_return=[])
     def find_similar_entities(self, name: str, entity_type: str, threshold: float = 0.8) -> List[Entity]:
         """
         查找相似实体
