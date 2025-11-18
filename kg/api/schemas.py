@@ -257,7 +257,7 @@ class NewsProcessingResponse(BaseModel):
     news: News = Field(..., description="新闻对象")
     entities: List[Entity] = Field(..., description="提取并存储的实体列表")
     relations: List[Relation] = Field(..., description="提取并存储的关系列表")
-    summary: str = Field(..., description="生成的新闻摘要")
+    summary: Optional[str] = Field(None, description="生成的新闻摘要")
     status: str = Field(..., description="处理状态")
 
 

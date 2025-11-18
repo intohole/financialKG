@@ -232,9 +232,18 @@ class EntityRepository(BaseRepository):
         return self.session.query(Entity).filter(Entity.canonical_name == canonical_name).all()
     
     @handle_db_errors(default_return=[])
-    def find_by_group_id(self, entity_group_id: int) -> List[Entity]:
-        """根据分组ID查找实体"""
-        return self.session.query(Entity).filter(Entity.entity_group_id == entity_group_id).all()
+    async def find_by_group_id(self, entity_group_id: int) -> List[Entity]:
+        """
+        根据分组ID查找实体
+        """
+        stmt = select(Entity).filter(Entity.entity_group_id == entity_group_id)
+        if self.session and not isinstance(self.session, AsyncIterator):
+            result = await self.session.execute(stmt)
+            return result.scalars().all()
+        else:
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                return result.scalars().all()
     
     @handle_db_errors(default_return=[])
     def find_by_type(self, entity_type: str, limit: Optional[int] = None) -> List[Entity]:

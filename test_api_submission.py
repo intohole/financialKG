@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 from kg.services.news_processing_service import NewsProcessingService
 from kg.services.database.knowledge_graph_service import KnowledgeGraphService
+from kg.database.connection import get_db_session
 
 
 async def test_api_submission():
@@ -15,7 +16,8 @@ async def test_api_submission():
     print("开始测试API提交功能...")
     
     # 初始化服务
-    kg_service = KnowledgeGraphService()
+    session = get_db_session()
+    kg_service = KnowledgeGraphService(session)
     news_service = NewsProcessingService(kg_service)
     
     # 测试新闻数据

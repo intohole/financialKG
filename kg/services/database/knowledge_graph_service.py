@@ -19,8 +19,8 @@ class KnowledgeGraphService:
     知识图谱服务类，提供知识图谱的综合操作
     """
     
-    def __init__(self, session: Optional[Session] = None):
-        self.session = session or get_db_session()
+    def __init__(self, session: Session):
+        self.session = session
         self.entity_service = EntityService(self.session)
         self.relation_service = RelationService(self.session)
         self.news_service = NewsService(self.session)
@@ -381,6 +381,110 @@ class KnowledgeGraphService:
         logger.info(f"成功获取实体 {entity_id} 的邻居节点，共找到 {len(result['neighbors'])} 个邻居")
         return result
     
+    @handle_db_errors(default_return=None)
+    async def get_relation_by_id(self, relation_id: int) -> Optional[Relation]:
+        """
+        根据ID获取单个关系
+        
+        Args:
+            relation_id: 关系ID
+            
+        Returns:
+            Optional[Relation]: 关系信息
+        """
+        logger.info(f"开始根据ID获取关系，ID: {relation_id}")
+        relation = await self.relation_service.get_relation_by_id(relation_id)
+        logger.info(f"完成根据ID获取关系: {relation}")
+        return relation
+    
+    @handle_db_errors(default_return=[])
+    async def get_relations(self, relation_type: Optional[str] = None, source_entity_id: Optional[int] = None, target_entity_id: Optional[int] = None, page: int = 1, page_size: int = 10, order_by: Optional[str] = None) -> List[Relation]:
+        """
+        获取关系列表
+        
+        Args:
+            relation_type: 关系类型
+            source_entity_id: 源实体ID
+            target_entity_id: 目标实体ID
+            page: 页码
+            page_size: 每页大小
+            order_by: 排序字段
+            
+        Returns:
+            List[Relation]: 关系列表
+        """
+        logger.info(f"开始获取关系列表，类型: {relation_type}, 源实体ID: {source_entity_id}, 目标实体ID: {target_entity_id}, 页码: {page}, 每页大小: {page_size}, 排序: {order_by}")
+        
+        # 获取所有关系
+        relations = await self.relation_service.relation_repo.get_all()
+        
+        # 根据类型过滤
+        if relation_type:
+            relations = [r for r in relations if r.relation_type == relation_type]
+        
+        # 根据源实体ID过滤
+        if source_entity_id:
+            relations = [r for r in relations if r.source_entity_id == source_entity_id]
+        
+        # 根据目标实体ID过滤
+        if target_entity_id:
+            relations = [r for r in relations if r.target_entity_id == target_entity_id]
+        
+        # 排序
+        if order_by:
+            if order_by == 'created_at':
+                relations.sort(key=lambda r: r.created_at)
+            elif order_by == 'updated_at':
+                relations.sort(key=lambda r: r.updated_at)
+            elif order_by == 'weight':
+                relations.sort(key=lambda r: r.weight, reverse=True)
+        
+        # 分页
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_relations = relations[start:end]
+        
+        logger.info(f"获取关系列表完成，共找到 {len(relations)} 个关系，返回 {len(paginated_relations)} 个关系")
+        return paginated_relations
+    
+    @handle_db_errors(default_return=None)
+    async def update_relation(self, relation_id: int, **kwargs) -> Optional[Relation]:
+        """
+        更新关系
+        
+        Args:
+            relation_id: 关系ID
+            **kwargs: 更新参数
+            
+        Returns:
+            Optional[Relation]: 更新后的关系
+        """
+        logger.info(f"开始更新关系，ID: {relation_id}, 参数: {kwargs}")
+        
+        # 处理properties字段
+        if 'properties' in kwargs and kwargs['properties']:
+            kwargs['properties'] = json.dumps(kwargs['properties'], ensure_ascii=False)
+        
+        updated_relation = await self.relation_service.relation_repo.update(relation_id, **kwargs)
+        logger.info(f"更新关系完成: {updated_relation}")
+        return updated_relation
+    
+    @handle_db_errors(default_return=False)
+    async def delete_relation(self, relation_id: int) -> bool:
+        """
+        删除关系
+        
+        Args:
+            relation_id: 关系ID
+            
+        Returns:
+            bool: 是否删除成功
+        """
+        logger.info(f"开始删除关系，ID: {relation_id}")
+        result = await self.relation_service.relation_repo.delete(relation_id)
+        logger.info(f"删除关系完成，结果: {result}")
+        return result
+    
     @handle_db_errors(default_return=[])
     async def deduplicate_entities(self, similarity_threshold: float = 0.8) -> List[EntityGroup]:
         """
@@ -549,6 +653,137 @@ class KnowledgeGraphService:
             'entity_groups': entity_group_count,
             'relation_groups': relation_group_count
         }
-        
-        logger.info(f"获取知识图谱统计信息完成，实体: {entity_count}, 关系: {relation_count}, 新闻: {news_count}")
+        logger.info(f"完成获取知识图谱统计信息: {statistics}")
         return statistics
+    
+    @handle_db_errors(default_return=None)
+    async def get_news_by_id(self, news_id: int) -> Optional[News]:
+        """
+        根据ID获取新闻
+        
+        Args:
+            news_id: 新闻ID
+            
+        Returns:
+            Optional[News]: 新闻信息
+        """
+        logger.info(f"开始根据ID获取新闻，ID: {news_id}")
+        news = await self.news_service.get_news_by_id(news_id)
+        logger.info(f"完成根据ID获取新闻: {news}")
+        return news
+
+    @handle_db_errors(default_return=None)
+    async def get_entity_by_id(self, entity_id: int) -> Optional[Entity]:
+        """根据ID获取单个实体"""
+        logger.info(f"获取实体 ID: {entity_id}")
+        return await self.entity_service.get_entity_by_id(entity_id)
+
+    @handle_db_errors(default_return=None)
+    async def update_entity(self, entity_id: int, **kwargs) -> Optional[Entity]:
+        """更新实体信息"""
+        logger.info(f"更新实体 ID: {entity_id}")
+        logger.debug(f"更新参数: {kwargs}")
+        return await self.entity_service.update_entity(entity_id, **kwargs)
+
+    @handle_db_errors(default_return=False)
+    async def delete_entity(self, entity_id: int) -> bool:
+        """删除实体"""
+        logger.info(f"删除实体 ID: {entity_id}")
+        return await self.entity_service.delete_entity(entity_id)
+    
+    @handle_db_errors(default_return=[])
+    async def get_entities_by_type(self, entity_type: str, page: int = 1, page_size: int = 10) -> List[Entity]:
+        """
+        根据类型获取实体列表
+        
+        Args:
+            entity_type: 实体类型
+            page: 页码
+            page_size: 每页大小
+            
+        Returns:
+            List[Entity]: 实体列表
+        """
+        logger.info(f"开始根据类型获取实体列表，类型: {entity_type}, 页码: {page}, 每页大小: {page_size}")
+        entities = await self.entity_service.get_entities_by_type(entity_type)
+        
+        # 分页
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_entities = entities[start:end]
+        
+        logger.info(f"完成根据类型获取实体列表，共找到 {len(entities)} 个实体，返回 {len(paginated_entities)} 个实体")
+        return paginated_entities
+
+    @handle_db_errors(default_return=[])
+    async def get_entities(self, name: Optional[str] = None, entity_type: Optional[str] = None, 
+                          page: int = 1, page_size: int = 10, order_by: Optional[str] = None) -> List[Entity]:
+        """
+        获取实体列表
+        
+        Args:
+            name: 实体名称（模糊匹配）
+            entity_type: 实体类型
+            page: 页码
+            page_size: 每页大小
+            order_by: 排序字段
+            
+        Returns:
+            List[Entity]: 实体列表
+        """
+        logger.info(f"开始获取实体列表，名称: {name}, 类型: {entity_type}, 页码: {page}, 每页大小: {page_size}, 排序: {order_by}")
+        
+        # 获取所有实体
+        entities = await self.entity_service.entity_repo.get_all()
+        
+        # 根据名称过滤
+        if name:
+            entities = [e for e in entities if name in e.name or name in (e.canonical_name or '')]
+        
+        # 根据类型过滤
+        if entity_type:
+            entities = [e for e in entities if e.type == entity_type]
+        
+        # 排序
+        if order_by:
+            if order_by == 'name':
+                entities.sort(key=lambda e: e.name)
+            elif order_by == 'created_at':
+                entities.sort(key=lambda e: e.created_at)
+            elif order_by == 'updated_at':
+                entities.sort(key=lambda e: e.updated_at)
+        
+        # 分页
+        start = (page - 1) * page_size
+        end = start + page_size
+        paginated_entities = entities[start:end]
+        
+        logger.info(f"获取实体列表完成，共找到 {len(entities)} 个实体，返回 {len(paginated_entities)} 个实体")
+        return paginated_entities
+    
+    @handle_db_errors(default_return=[])
+    async def get_entities_by_group(self, group_name: str) -> List[Entity]:
+        """
+        根据分组名称获取实体列表
+        
+        Args:
+            group_name: 实体分组名称
+            
+        Returns:
+            List[Entity]: 实体列表
+        """
+        logger.info(f"开始根据分组名称获取实体列表，分组名称: {group_name}")
+        
+        # 首先根据名称获取实体分组
+        entity_groups = await self.entity_service.entity_group_repo.find_by_name(group_name)
+        if not entity_groups:
+            logger.info(f"未找到名为 {group_name} 的实体分组")
+            return []
+        
+        entity_group_id = entity_groups[0].id
+        
+        # 根据分组ID获取实体
+        entities = await self.entity_service.entity_repo.find_by_group_id(entity_group_id)
+        
+        logger.info(f"根据分组名称 {group_name} 获取实体列表完成，共找到 {len(entities)} 个实体")
+        return entities

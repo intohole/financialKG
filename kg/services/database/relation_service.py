@@ -147,9 +147,9 @@ class RelationService:
         return relation_group
     
     @handle_db_errors(default_return=None)
-    def get_relation_by_id(self, relation_id: int) -> Optional[Relation]:
+    async def get_relation_by_id(self, relation_id: int) -> Optional[Relation]:
         """根据ID获取关系"""
-        return self.relation_repo.get(relation_id)
+        return await self.relation_repo.get(relation_id)
     
     @handle_db_errors(default_return=[])
     def get_relations_by_group(self, relation_group_id: int) -> List[Relation]:

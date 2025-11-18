@@ -1,5 +1,5 @@
 {
-  "news_id": 15,
+  "news_id": 3,
   "entities": [
     {
       "name": "苹果公司",
@@ -34,30 +34,9 @@
   ],
   "relations": [
     {
-      "source_entity_id": 1,
-      "target_entity_id": 100,
-      "relation_type": "发布者",
-      "canonical_relation": null,
-      "source": "llm"
-    },
-    {
-      "source_entity_id": 100,
-      "target_entity_id": 101,
-      "relation_type": "增长",
-      "canonical_relation": null,
-      "source": "llm"
-    },
-    {
-      "source_entity_id": 11,
-      "target_entity_id": 1,
-      "relation_type": "职位",
-      "canonical_relation": null,
-      "source": "llm"
-    },
-    {
-      "source_entity_id": 11,
-      "target_entity_id": 102,
-      "relation_type": "时间指向",
+      "source_entity_id": 6,
+      "target_entity_id": 3,
+      "relation_type": "人物关系",
       "canonical_relation": null,
       "source": "llm"
     }

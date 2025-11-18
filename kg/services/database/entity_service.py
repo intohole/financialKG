@@ -161,9 +161,9 @@ class EntityService:
         return entity_group
     
     @handle_db_errors(default_return=None)
-    def get_entity_by_id(self, entity_id: int) -> Optional[Entity]:
+    async def get_entity_by_id(self, entity_id: int) -> Optional[Entity]:
         """根据ID获取实体"""
-        return self.entity_repo.get(entity_id)
+        return await self.entity_repo.get(entity_id)
     
     @handle_db_errors(default_return=[])
     def get_entities_by_group(self, entity_group_id: int) -> List[Entity]:
@@ -187,8 +187,13 @@ class EntityService:
         return self.entity_news_repo.get_news_by_entity(entity_id, limit)
     
     @handle_db_errors(default_return=None)
-    def update_entity(self, entity_id: int, **kwargs) -> Optional[Entity]:
+    async def update_entity(self, entity_id: int, **kwargs) -> Optional[Entity]:
         """更新实体"""
         if 'properties' in kwargs and kwargs['properties']:
             kwargs['properties'] = json.dumps(kwargs['properties'])
-        return self.entity_repo.update(entity_id, **kwargs)
+        return await self.entity_repo.update(entity_id, **kwargs)
+    
+    @handle_db_errors(default_return=None)
+    async def delete_entity(self, entity_id: int) -> bool:
+        """删除实体"""
+        return await self.entity_repo.delete(entity_id)

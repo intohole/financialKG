@@ -48,7 +48,7 @@ async def create_entity(
 
 @router.get("/entities/{entity_id}", response_model=schemas.Entity)
 async def get_entity(
-    entity_id: UUID,
+    entity_id: int,
     db: AsyncSession = Depends(get_db_session)
 ):
     kg_service = KnowledgeGraphService(db)
@@ -60,7 +60,7 @@ async def get_entity(
 @router.get("/entities", response_model=List[schemas.Entity])
 async def get_entities(
     name: Optional[str] = None,
-    type: Optional[str] = None,
+    entity_type: Optional[str] = None,
     page: int = 1,
     page_size: int = 10,
     sort_by: Optional[str] = None,
@@ -69,7 +69,7 @@ async def get_entities(
     kg_service = KnowledgeGraphService(db)
     entities = await kg_service.get_entities(
         name=name,
-        type=type,
+        entity_type=entity_type,
         page=page,
         page_size=page_size,
         order_by=sort_by
@@ -78,7 +78,7 @@ async def get_entities(
 
 @router.put("/entities/{entity_id}", response_model=schemas.Entity)
 async def update_entity(
-    entity_id: UUID,
+    entity_id: int,
     entity: schemas.EntityUpdate,
     db: AsyncSession = Depends(get_db_session)
 ):
@@ -96,7 +96,7 @@ async def update_entity(
 
 @router.delete("/entities/{entity_id}", status_code=204)
 async def delete_entity(
-    entity_id: UUID,
+    entity_id: int,
     db: AsyncSession = Depends(get_db_session)
 ):
     kg_service = KnowledgeGraphService(db)
@@ -128,7 +128,7 @@ async def create_relation(
 
 @router.get("/relations/{relation_id}", response_model=schemas.Relation)
 async def get_relation(
-    relation_id: UUID,
+    relation_id: int,
     db: AsyncSession = Depends(get_db_session)
 ):
     kg_service = KnowledgeGraphService(db)
@@ -140,8 +140,8 @@ async def get_relation(
 @router.get("/relations", response_model=List[schemas.Relation])
 async def get_relations(
     relation_type: Optional[str] = None,
-    source_entity_id: Optional[UUID] = None,
-    target_entity_id: Optional[UUID] = None,
+    source_entity_id: Optional[int] = None,
+    target_entity_id: Optional[int] = None,
     page: int = 1,
     page_size: int = 10,
     sort_by: Optional[str] = None,
@@ -160,7 +160,7 @@ async def get_relations(
 
 @router.put("/relations/{relation_id}", response_model=schemas.Relation)
 async def update_relation(
-    relation_id: UUID,
+    relation_id: int,
     relation: schemas.RelationUpdate,
     db: AsyncSession = Depends(get_db_session)
 ):
@@ -178,7 +178,7 @@ async def update_relation(
 
 @router.delete("/relations/{relation_id}", status_code=204)
 async def delete_relation(
-    relation_id: UUID,
+    relation_id: int,
     db: AsyncSession = Depends(get_db_session)
 ):
     kg_service = KnowledgeGraphService(db)
@@ -208,7 +208,7 @@ async def create_news(
 
 @router.get("/news/{news_id}", response_model=schemas.News)
 async def get_news(
-    news_id: UUID,
+    news_id: int,
     db: AsyncSession = Depends(get_db_session)
 ):
     kg_service = KnowledgeGraphService(db)
@@ -236,16 +236,17 @@ async def get_all_news(
     )
     return news_list
 
-@router.post("/news/{news_id}/process", response_model=schemas.News)
+@router.post("/news/{news_id}/process", response_model=schemas.NewsProcessingResponse)
 async def process_news(
-    news_id: UUID,
+    news_id: int,
+    llm_data: schemas.LLMExtractedData,
     db: AsyncSession = Depends(get_db_session)
 ):
     kg_service = KnowledgeGraphService(db)
-    processed_news = await kg_service.process_news(news_id)
-    if not processed_news:
+    processed_result = await kg_service.process_news(news_id, llm_data.entities, llm_data.relations)
+    if not processed_result:
         raise HTTPException(status_code=404, detail="News not found or processing failed")
-    return processed_news
+    return processed_result
 
 # LLM数据提取和存储端点
 @router.post("/entities/extract", response_model=schemas.LLMExtractedData, status_code=201)
@@ -259,10 +260,34 @@ async def extract_and_store_entities(
     )
     return result
 
+@router.post("/knowledge/submit", response_model=Dict[str, Any], status_code=201)
+async def submit_knowledge(
+    submission: Dict[str, Any],
+    db: AsyncSession = Depends(get_db_session)
+):
+    """Submit knowledge extracted by LLM"""
+    kg_service = KnowledgeGraphService(db)
+    news_id = submission.get("news_id")
+    entities = submission.get("entities", [])
+    relations = submission.get("relations", [])
+    
+    if not news_id:
+        raise HTTPException(status_code=400, detail="Missing news_id")
+    
+    news, stored_entities, stored_relations = await kg_service.store_llm_extracted_data(news_id, entities, relations)
+    
+    return {
+        "success": True,
+        "message": "Knowledge submitted successfully",
+        "news_id": news.id if news else None,
+        "entities_count": len(stored_entities),
+        "relations_count": len(stored_relations)
+    }
+
 # 实体邻居查询端点
 @router.get("/entities/{entity_id}/neighbors", response_model=schemas.EntityNeighborsResponse)
 async def get_entity_neighbors(
-    entity_id: UUID,
+    entity_id: int,
     max_depth: int = Query(1, gt=0, le=3),
     relation_types: Optional[list[str]] = Query(None),
     db: AsyncSession = Depends(get_db_session)
