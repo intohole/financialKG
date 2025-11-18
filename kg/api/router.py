@@ -290,14 +290,14 @@ async def deduplicate_entities(
                 keyword=request.keyword,
                 entity_type=request.entity_type,
                 similarity_threshold=request.similarity_threshold,
-                limit=request.limit
+                limit=getattr(request, 'limit', None)
             )
         elif request.entity_type:
             # 根据实体类型去重
             result = await deduplication_service.deduplicate_entities_by_type(
                 entity_type=request.entity_type,
                 similarity_threshold=request.similarity_threshold,
-                limit=request.limit
+                limit=getattr(request, 'limit', None)
             )
         else:
             # 去重所有实体
@@ -330,7 +330,7 @@ async def deduplicate_relations(
             result = await deduplication_service.deduplicate_relations_by_type(
                 relation_type=request.relation_type,
                 similarity_threshold=request.similarity_threshold,
-                limit=request.limit
+                limit=getattr(request, 'limit', None)
             )
         else:
             # 去重所有关系
