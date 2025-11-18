@@ -186,6 +186,23 @@ class EntityRepository(BaseRepository):
         super().__init__(Entity, session)
     
     @handle_db_errors(default_return=[])
+    async def get_all_entity_types(self) -> List[str]:
+        """
+        获取所有不同的实体类型
+        
+        Returns:
+            实体类型列表
+        """
+        stmt = select(Entity.type).distinct()
+        if self.session and not isinstance(self.session, AsyncIterator):
+            result = await self.session.execute(stmt)
+            return [row[0] for row in result]
+        else:
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                return [row[0] for row in result]
+    
+    @handle_db_errors(default_return=[])
     def find_by_name(self, name: str, entity_type: Optional[str] = None) -> List[Entity]:
         """根据名称查找实体"""
         query = self.session.query(Entity).filter(Entity.name == name)
@@ -287,6 +304,23 @@ class RelationRepository(BaseRepository):
     
     def __init__(self, session: Optional[Session] = None):
         super().__init__(Relation, session)
+    
+    @handle_db_errors(default_return=[])
+    async def get_all_relation_types(self) -> List[str]:
+        """
+        获取所有不同的关系类型
+        
+        Returns:
+            关系类型列表
+        """
+        stmt = select(Relation.relation_type).distinct()
+        if self.session and not isinstance(self.session, AsyncIterator):
+            result = await self.session.execute(stmt)
+            return [row[0] for row in result]
+        else:
+            async with db_session() as session:
+                result = await session.execute(stmt)
+                return [row[0] for row in result]
     
     @handle_db_errors(default_return=[])
     def find_by_entities(self, source_entity_id: int, target_entity_id: int, 
