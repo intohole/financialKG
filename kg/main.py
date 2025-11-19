@@ -1,23 +1,17 @@
 """
-知识图谱服务主入口
+金融知识图谱服务主入口
+
+此模块负责初始化和配置FastAPI应用程序，设置中间件，初始化核心服务，
+并注册API路由。作为系统的主要入口点，它协调各组件间的交互并确保服务
+能够正常启动和运行。
 """
+
 import logging
-import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# 修复导入路径 - 使用正确的数据库模块路径
-from kg.core.config import BaseConfig
-from kg.database import init_database, db_session
-from kg.services.llm_service import LLMService
-from kg.services.integration import (
-    DeduplicationServiceRegistry,
-    create_deduplication_service_provider,
-    register_deduplication_tasks
-)
-# 导入embedding和chroma服务
-from kg.services.embedding_service import create_embedding_service, EmbeddingService
-from kg.services.chroma_service import create_chroma_service, ChromaService
+# 导入核心配置和服务
+from kg.database import init_database
 
 # 配置日志
 logging.basicConfig(
@@ -38,218 +32,28 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# 全局配置和服务实例
-from kg.core.config import embedding_config
-config = BaseConfig()
-llm_service = None
-embedding_service = None
-chroma_service = None
-deduplication_service_registry = None
-app.state.scheduler = None
+# 只保留必要的全局变量
 
 @app.on_event("startup")
 async def initialize_services():
     """初始化所有服务"""
-    global llm_service, deduplication_service_registry
     
     try:
+        logger.info("应用正在启动...")
+        
         # 初始化数据库表
         logger.info("正在初始化数据库表...")
         await db_manager.create_tables_async()
         logger.info("数据库表初始化完成")
         
-        # 初始化LLM服务
-        logger.info("正在初始化LLM服务...")
-        llm_service = LLMService()
-        # 有些LLM服务可能不需要显式初始化
-        if hasattr(llm_service, 'initialize'):
-            await llm_service.initialize()
-        logger.info("LLM服务初始化完成")
-        
-        # 初始化embedding服务
-        logger.info("正在初始化embedding服务...")
-        embedding_service = create_embedding_service(config=embedding_config)
-        if hasattr(embedding_service, 'initialize'):
-            await embedding_service.initialize()
-        logger.info("embedding服务初始化完成")
-        
-        # 初始化chroma服务
-        logger.info("正在初始化chroma服务...")
-        chroma_service = await create_chroma_service()
-        if hasattr(chroma_service, 'initialize'):
-            await chroma_service.initialize()
-        logger.info("chroma服务初始化完成")
-        
-        # 初始化去重服务
-        logger.info("正在初始化去重服务...")
-        deduplication_service_registry = DeduplicationServiceRegistry()
-        
-        # 创建数据库会话
-        async with db_session() as session:
-            # 注册去重服务
-            deduplication_service = DeduplicationServiceRegistry.register_service(
-                session=session,
-                llm_service=llm_service,
-                service_id="default",
-                embedding_service=embedding_service,
-                chroma_service=chroma_service
-            )
-        
-        # 将去重服务存储到app.state
-        app.state.deduplication_service = deduplication_service
-        logger.info("去重服务初始化完成")
-        
-        # 初始化任务调度器和去重定时任务
-        logger.info("正在初始化任务调度器...")
-        try:
-            # 尝试导入APScheduler
-            try:
-                from apscheduler.schedulers.asyncio import AsyncIOScheduler
-                from apscheduler.executors.asyncio import AsyncIOExecutor
-                from apscheduler.jobstores.memory import MemoryJobStore
-                
-                # 创建调度器配置
-                jobstores = {'default': MemoryJobStore()}
-                executors = {'default': AsyncIOExecutor()}
-                job_defaults = {
-                    'coalesce': False,
-                    'max_instances': 3
-                }
-                
-                # 创建并启动调度器
-                scheduler = AsyncIOScheduler(
-                    jobstores=jobstores,
-                    executors=executors,
-                    job_defaults=job_defaults,
-                    timezone="Asia/Shanghai"
-                )
-                scheduler.start()
-                app.state.scheduler = scheduler
-                logger.info("任务调度器启动成功")
-                
-                # 获取默认去重服务
-                service = deduplication_service_registry.get_default_service()
-                if service:
-                    # 为去重任务创建简单的包装器，确保任务能正常运行
-                    async def deduplicate_entities_wrapper():
-                        """实体去重任务包装器"""
-                        try:
-                            async with await db_manager.get_session() as session:
-                                # 确保服务使用新会话
-                                if hasattr(service, 'session'):
-                                    service.session = session
-                                logger.info("开始执行实体去重任务...")
-                                result = await service.deduplicate_all_entities(
-                                    similarity_threshold=0.85,
-                                    batch_size=50,
-                                    entity_types=["公司", "人物", "产品", "地点"]
-                                )
-                                logger.info(f"实体去重任务执行完成: {result}")
-                        except Exception as e:
-                            logger.error(f"执行实体去重任务时出错: {str(e)}")
-                    
-                    async def deduplicate_relations_wrapper():
-                        """关系去重任务包装器"""
-                        try:
-                            async with await db_manager.get_session() as session:
-                                if hasattr(service, 'session'):
-                                    service.session = session
-                                logger.info("开始执行关系去重任务...")
-                                result = await service.deduplicate_all_relations(
-                                    similarity_threshold=0.8,
-                                    batch_size=50,
-                                    relation_types=["控股", "投资", "合作", "竞争"]
-                                )
-                                logger.info(f"关系去重任务执行完成: {result}")
-                        except Exception as e:
-                            logger.error(f"执行关系去重任务时出错: {str(e)}")
-                    
-                    # 注册去重定时任务
-                    scheduler.add_job(
-                        deduplicate_entities_wrapper,
-                        'cron',
-                        hour=1,
-                        minute=0,
-                        id='entity_deduplication_daily',
-                        name='每日实体去重',
-                        replace_existing=True
-                    )
-                    scheduler.add_job(
-                        deduplicate_relations_wrapper,
-                        'cron',
-                        hour=2,
-                        minute=0,
-                        id='relation_deduplication_daily',
-                        name='每日关系去重',
-                        replace_existing=True
-                    )
-                    logger.info("去重定时任务注册成功")
-                else:
-                    logger.warning("未找到默认去重服务，跳过任务注册")
-                    
-            except ImportError:
-                logger.warning("APScheduler 库未安装，去重定时任务不可用")
-                logger.info("请安装 APScheduler: pip install apscheduler")
-        except Exception as scheduler_error:
-            logger.error(f"初始化调度器或注册任务失败: {str(scheduler_error)}")
-            
-        # 存储服务实例到app.state
-        app.state.llm_service = llm_service
-        app.state.deduplication_service = deduplication_service_registry.get_default_service()
-        app.state.deduplication_registry = deduplication_service_registry
-        
+        # 初始化其他服务暂时跳过
+        logger.info("应用启动完成")
     except Exception as e:
-        logger.error(f"初始化服务过程中发生错误: {str(e)}")
-        # 即使出错也要确保服务能继续运行
+        logger.error(f"服务初始化失败: {str(e)}")
+        raise
 
-@app.on_event("startup")
-async def startup_event():
-    """应用启动事件"""
-    logger.info("应用正在启动...")
-    await initialize_services()
-    logger.info("应用启动完成")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭事件"""
-    global llm_service
-    logger.info("应用正在关闭...")
-    
-    # 关闭调度器
-    if hasattr(app.state, 'scheduler') and app.state.scheduler:
-        try:
-            app.state.scheduler.shutdown()
-            logger.info("任务调度器已关闭")
-        except Exception as e:
-            logger.error(f"关闭调度器时出错: {str(e)}")
-    
-    # 关闭LLM服务
-    if llm_service and hasattr(llm_service, 'shutdown'):
-        try:
-            await llm_service.shutdown()
-            logger.info("LLM服务已关闭")
-        except Exception as e:
-            logger.error(f"关闭LLM服务时出错: {str(e)}")
-    
-    # 关闭embedding服务
-    if embedding_service and hasattr(embedding_service, 'shutdown'):
-        try:
-            await embedding_service.shutdown()
-            logger.info("embedding服务已关闭")
-        except Exception as e:
-            logger.error(f"关闭embedding服务时出错: {str(e)}")
-    
-    # 关闭chroma服务
-    if chroma_service and hasattr(chroma_service, 'shutdown'):
-        try:
-            await chroma_service.shutdown()
-            logger.info("chroma服务已关闭")
-        except Exception as e:
-            logger.error(f"关闭chroma服务时出错: {str(e)}")
-    
-    logger.info("应用已关闭")
-
-# 包含路由
+# 包含API路由
+# 这里注册了系统的所有API端点，包括实体管理、关系管理、新闻处理和去重功能
 from kg.api import include_routers
 
 # 添加根路径
@@ -271,9 +75,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 健康检查端点
+@app.get("/health")
+async def health_check():
+    """
+    系统健康检查端点
+    
+    用于监控系统运行状态，返回系统当前的运行情况信息
+    可以被负载均衡器、监控系统等外部服务调用
+    """
+    return {"status": "ok", "message": "Financial Knowledge Graph Service is running"}
+
+# 路由注册前的空白区域
+
 # 包含所有路由
 include_routers(app)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("kg.main:app", host="0.0.0.0", port=8000, reload=True)
+    import sys
+    # 允许通过命令行参数指定端口
+    port = 8000
+    if len(sys.argv) > 1 and sys.argv[1].startswith("--port"):
+        try:
+            port = int(sys.argv[1].split("=")[1]) if "=" in sys.argv[1] else int(sys.argv[2])
+        except (IndexError, ValueError):
+            print(f"Invalid port argument: {sys.argv[1]}, using default port 8000")
+    uvicorn.run("kg.main:app", host="0.0.0.0", port=port, reload=True)

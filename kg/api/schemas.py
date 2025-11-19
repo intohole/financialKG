@@ -264,14 +264,14 @@ class NewsProcessingResponse(BaseModel):
 # 去重服务相关模型
 class EntityDeduplicationRequest(BaseModel):
     """实体去重请求模型"""
-    keyword: Optional[str] = Field(None, description="关键词过滤")
-    entity_type: Optional[str] = Field(None, description="实体类型过滤")
-    entity_types: Optional[List[str]] = Field(None, description="实体类型列表过滤")  # 添加entity_types字段
-    similarity_threshold: float = Field(0.85, ge=0.5, le=1.0, description="相似度阈值")
-    batch_size: int = Field(100, ge=1, le=1000, description="批处理大小")
-    limit: Optional[int] = Field(None, description="限制结果数量")  # 添加limit字段
-    skip_entities: bool = Field(False, description="是否跳过实体去重")
-    skip_relations: bool = Field(False, description="是否跳过关系去重")
+    keyword: Optional[str] = None
+    entity_type: Optional[str] = None
+    entity_types: Optional[List[str]] = None
+    similarity_threshold: float = 0.85
+    batch_size: int = 100
+    limit: Optional[int] = None
+    skip_entities: bool = False
+    skip_relations: bool = False
 
 
 class EntityDeduplicationResponse(BaseModel):
@@ -286,13 +286,13 @@ class EntityDeduplicationResponse(BaseModel):
 
 class RelationDeduplicationRequest(BaseModel):
     """关系去重请求模型"""
-    keyword: Optional[str] = Field(None, description="关键词过滤")
-    relation_type: Optional[str] = Field(None, description="关系类型过滤")
-    relation_types: Optional[List[str]] = Field(None, description="关系类型列表过滤")  # 添加relation_types字段
-    entity_id: Optional[int] = Field(None, description="实体ID过滤")  # 添加entity_id字段
-    similarity_threshold: float = Field(0.8, ge=0.5, le=1.0, description="相似度阈值")
-    batch_size: int = Field(100, ge=1, le=1000, description="批处理大小")
-    limit: Optional[int] = Field(None, description="限制结果数量")  # 添加limit字段
+    keyword: Optional[str] = None
+    relation_type: Optional[str] = None
+    relation_types: Optional[List[str]] = None
+    entity_id: Optional[int] = None
+    similarity_threshold: float = 0.85
+    batch_size: int = 100
+    limit: Optional[int] = None
 
 
 class RelationDeduplicationResponse(BaseModel):
@@ -311,3 +311,27 @@ class FullDeduplicationResponse(BaseModel):
     relation_deduplication: RelationDeduplicationResponse = Field(..., description="关系去重结果")
     total_time: float = Field(..., description="总耗时(秒)")
     timestamp: datetime = Field(..., description="执行时间戳")
+
+
+class DeduplicationConfigRequest(BaseModel):
+    """去重配置请求模型"""
+    similarity_threshold: float = Field(0.85, ge=0.0, le=1.0, description="相似度阈值")
+    batch_size: int = Field(100, ge=1, le=1000, description="批处理大小")
+    limit: Optional[int] = Field(None, ge=1, description="处理限制")
+    entity_types: Optional[List[str]] = Field(None, description="实体类型过滤")
+    keyword: Optional[str] = Field(None, description="关键词过滤")
+    auto_merge: bool = Field(False, description="是否自动合并")
+    use_vector_search: bool = Field(True, description="是否使用向量搜索")
+    fallback_to_string_similarity: bool = Field(True, description="是否回退到字符串相似度")
+    min_entities_for_duplication: int = Field(2, ge=2, description="进行重复检测的最小实体数")
+
+
+class DeduplicationResult(BaseModel):
+    """去重操作结果模型"""
+    deduplicated_groups: int = Field(..., description="去重的组数")
+    merged_items: int = Field(..., description="合并的项目数")
+    preserved_items: int = Field(..., description="保留的项目数")
+    operation_time: float = Field(..., description="操作耗时(秒)")
+    success: bool = Field(..., description="操作是否成功")
+    message: Optional[str] = Field(None, description="操作消息")
+    details: Optional[Dict[str, Any]] = Field(None, description="详细信息")

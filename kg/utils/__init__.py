@@ -1,7 +1,7 @@
 """
 工具函数模块
 
-提供通用的工具函数和装饰器，用于简化代码实现
+提供系统各组件共享的通用功能和辅助函数
 """
 import logging
 from typing import Any, Callable, Optional
@@ -10,6 +10,52 @@ from sqlalchemy.exc import SQLAlchemyError
 
 # 导入数据库相关工具
 from .db_utils import handle_db_errors, handle_db_errors_with_reraise, jsonify_properties
+
+# 导入嵌入向量处理工具
+from .embedding_utils import (
+    calculate_cosine_similarity,
+    validate_embedding,
+    normalize_embedding,
+    aggregate_embeddings,
+    batch_normalize_embeddings
+)
+
+# 导入实体关系处理工具
+from .entity_relation_utils import (
+    validate_entity,
+    validate_relation,
+    group_entities_by_type,
+    find_entity_by_id,
+    deduplicate_entities_by_name,
+    deduplicate_relations,
+    find_entity_duplicates,
+    merge_entity_duplicates,
+    enrich_entity_with_relation_info,
+    create_id_mapping
+)
+
+# 导入文本处理工具
+from .text_processing_utils import (
+    clean_text,
+    split_text_into_chunks,
+    extract_keywords_from_text,
+    normalize_text,
+    truncate_text,
+    validate_text_input,
+    chunk_text
+)
+
+# 导入服务管理工具
+from .service_utils import (
+    ServiceRegistry,
+    global_service_registry,
+    get_service,
+    register_service,
+    create_service_factory,
+    retry_on_failure,
+    service_lifecycle,
+    validate_service_config
+)
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -57,7 +103,50 @@ def handle_errors(error_types: tuple = (Exception,), default_return: Any = None,
                         
                         context = ", ".join(context_parts)
                         logger.error(f"操作失败, {context}, 错误: {e}")
-                
                 return default_return
         return wrapper
     return decorator
+
+
+__all__ = [
+    # 通用工具
+    'handle_errors',
+    # 数据库工具
+    'handle_db_errors',
+    'handle_db_errors_with_reraise', 
+    'jsonify_properties',
+    # embedding_utils
+    'calculate_cosine_similarity',
+    'validate_embedding',
+    'normalize_embedding',
+    'aggregate_embeddings',
+    'batch_normalize_embeddings',
+    # entity_relation_utils
+    'validate_entity',
+    'validate_relation',
+    'group_entities_by_type',
+    'find_entity_by_id',
+    'deduplicate_entities_by_name',
+    'deduplicate_relations',
+    'find_entity_duplicates',
+    'merge_entity_duplicates',
+    'enrich_entity_with_relation_info',
+    'create_id_mapping',
+    # text_processing_utils
+    'clean_text',
+    'split_text_into_chunks',
+    'extract_keywords_from_text',
+    'normalize_text',
+    'truncate_text',
+    'validate_text_input',
+    'chunk_text',
+    # service_utils
+    'ServiceRegistry',
+    'global_service_registry',
+    'get_service',
+    'register_service',
+    'create_service_factory',
+    'retry_on_failure',
+    'service_lifecycle',
+    'validate_service_config'
+]

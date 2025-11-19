@@ -462,8 +462,139 @@ class SchedulerConfigWrapper(BaseConfig):
         return self.config.get('scheduler', {}).get('tasks', [])
 
 
+class DeduplicationConfig(BaseConfig):
+    """去重服务配置类"""
+    
+    def __init__(self, config_path: Optional[str] = None):
+        """
+        初始化去重服务配置
+        
+        Args:
+            config_path: 配置文件路径，默认为项目根目录下的config.yaml
+        """
+        super().__init__(config_path)
+    
+    @property
+    def enabled(self) -> bool:
+        """是否启用去重服务"""
+        return self.config.get('deduplication', {}).get('enabled', True)
+    
+    @property
+    def auto_run(self) -> bool:
+        """是否自动运行去重"""
+        return self.config.get('deduplication', {}).get('auto_run', True)
+    
+    @property
+    def entity_types(self) -> List[str]:
+        """需要去重的实体类型列表"""
+        return self.config.get('deduplication', {}).get('entity_types', [])
+    
+    @property
+    def similarity_threshold(self) -> float:
+        """相似度阈值"""
+        return self.config.get('deduplication', {}).get('similarity_threshold', 0.85)
+    
+    @property
+    def batch_size(self) -> int:
+        """批量处理大小"""
+        return self.config.get('deduplication', {}).get('batch_size', 100)
+    
+    @property
+    def use_llm(self) -> bool:
+        """是否使用LLM进行聚合"""
+        return self.config.get('deduplication', {}).get('use_llm', True)
+    
+    @property
+    def max_entities_per_batch(self) -> int:
+        """每批最大实体数量"""
+        return self.config.get('deduplication', {}).get('max_entities_per_batch', 1000)
+    
+    @property
+    def relation_weight_threshold(self) -> float:
+        """关系权重阈值"""
+        return self.config.get('deduplication', {}).get('relation_weight_threshold', 0.5)
+    
+    @property
+    def max_groups_per_run(self) -> int:
+        """每次运行最大处理的分组数量"""
+        return self.config.get('deduplication', {}).get('max_groups_per_run', 50)
+    
+    @property
+    def log_level(self) -> str:
+        """日志级别"""
+        return self.config.get('deduplication', {}).get('log_level', "INFO")
+
+
+class DeduplicationConfigManager:
+    """去重服务配置管理器"""
+    
+    def __init__(self, config_path: Optional[str] = None):
+        self.config_path = config_path or os.path.join(
+            Path(__file__).parent.parent.parent, "config.yaml"
+        )
+    
+    def load_config(self) -> Dict[str, Any]:
+        """加载去重服务配置"""
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config_dict = yaml.safe_load(f) or {}
+            
+            return config_dict.get("deduplication", {
+                "enabled": True,
+                "auto_run": True,
+                "entity_types": [],
+                "similarity_threshold": 0.85,
+                "batch_size": 100,
+                "use_llm": True,
+                "max_entities_per_batch": 1000,
+                "relation_weight_threshold": 0.5,
+                "max_groups_per_run": 50,
+                "log_level": "INFO"
+            })
+        except Exception as e:
+            print(f"加载去重服务配置失败: {e}, 使用默认配置")
+            return {
+                "enabled": True,
+                "auto_run": True,
+                "entity_types": [],
+                "similarity_threshold": 0.85,
+                "batch_size": 100,
+                "use_llm": True,
+                "max_entities_per_batch": 1000,
+                "relation_weight_threshold": 0.5,
+                "max_groups_per_run": 50,
+                "log_level": "INFO"
+            }
+    
+    def save_config(self, deduplication_config: Dict[str, Any]) -> None:
+        """保存去重服务配置"""
+        try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                config_dict = yaml.safe_load(f) or {}
+            
+            config_dict["deduplication"] = deduplication_config
+            
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config_dict, f, default_flow_style=False, allow_unicode=True)
+        except Exception as e:
+            print(f"保存去重服务配置失败: {e}")
+    
+    def update_config(self, **kwargs) -> None:
+        """更新去重服务配置"""
+        current_config = self.load_config()
+        current_config.update(kwargs)
+        self.save_config(current_config)
+    
+    def get_config_value(self, key: str, default: Any = None) -> Any:
+        """获取特定配置值"""
+        config = self.load_config()
+        return config.get(key, default)
+
+
 # 全局配置实例
 llm_config = LLMConfig()
 embedding_config = EmbeddingConfig()
 scheduler_config_manager = SchedulerConfigManager()
 scheduler_config = SchedulerConfigWrapper()
+deduplication_config = DeduplicationConfig()
+deduplication_config_manager = DeduplicationConfigManager()

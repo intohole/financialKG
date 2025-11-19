@@ -170,10 +170,10 @@ class EntityService:
         """根据分组ID获取实体"""
         return await self.entity_repo.find_by_group_id(entity_group_id)
     
-    @handle_db_errors(default_return=[])
+    @handle_db_errors(default_return=[])  
     async def get_entities_by_type(self, entity_type: str, limit: Optional[int] = None) -> List[Entity]:
         """根据类型获取实体"""
-        return await self.entity_repo.find_by_type(entity_type)
+        return await self.entity_repo.find_by_type(entity_type, limit)
     
     @handle_db_errors(default_return=[]) 
     async def search_entities(self, keyword: str, entity_type: Optional[str] = None, 

@@ -165,26 +165,33 @@ class KnowledgeGraphService:
         # 提取新存储的实体类型
         new_entity_types = set(entity.type for entity in stored_entities)
         
-        # 对每个新实体类型进行去重
-        for entity_type in new_entity_types:
-            logger.info(f"对实体类型 {entity_type} 进行去重")
-            await self.entity_relation_deduplication_service.deduplicate_entities_by_type(
-                entity_type=entity_type,
-                similarity_threshold=0.8,
-                batch_size=100
-            )
-        
         # 提取新存储的关系类型
         new_relation_types = set(relation.relation_type for relation in stored_relations)
         
-        # 对每个新关系类型进行去重
-        for relation_type in new_relation_types:
-            logger.info(f"对关系类型 {relation_type} 进行去重")
-            await self.entity_relation_deduplication_service.deduplicate_relations_by_type(
-                relation_type=relation_type,
+        # 使用现有的deduplicate方法对新实体和关系进行去重
+        if new_entity_types:
+            from kg.interfaces.deduplication_service import DeduplicationConfig
+            
+            # 为实体创建去重配置
+            entity_config = DeduplicationConfig(
                 similarity_threshold=0.8,
-                batch_size=100
+                batch_size=100,
+                entity_types=list(new_entity_types)
             )
+            logger.info(f"对实体类型 {new_entity_types} 进行去重")
+            await self.entity_relation_deduplication_service.deduplicate(entity_config)
+        
+        if new_relation_types:
+            from kg.interfaces.deduplication_service import DeduplicationConfig
+            
+            # 为关系创建去重配置
+            relation_config = DeduplicationConfig(
+                similarity_threshold=0.8,
+                batch_size=100,
+                entity_types=list(new_entity_types)  # 关系去重也需要实体类型信息
+            )
+            logger.info(f"对关系类型 {new_relation_types} 进行去重")
+            await self.entity_relation_deduplication_service.deduplicate(relation_config)
         
         logger.info(f"去重完成，新闻ID: {news_id}")
         

@@ -20,7 +20,7 @@ langchain-openai==0.0.2
 langgraph==0.0.26
 openai==1.6.1
 tiktoken==0.5.2
-chromadb==0.4.24
+chromadb>=0.4.25
 
 # 数据处理和验证
 pydantic==2.5.0
