@@ -5,6 +5,4 @@
 
 from .langchain_config import LangChainConfig
 
-__all__ = [
-    "LangChainConfig"
-]
+__all__ = ["LangChainConfig"]

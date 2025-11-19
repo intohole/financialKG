@@ -53,35 +53,6 @@
 - 测试用例是否合理、全面
 - 测试是否易于运行和维护
 
-### 1.4 Review流程
-
-#### 1.4.1 发起Review
-- 完成代码开发后，提交代码到版本控制系统
-- 创建Review请求，指定Reviewers
-- 提供清晰的Review说明（功能、变更点、注意事项等）
-
-#### 1.4.2 进行Review
-- Reviewers仔细阅读代码和说明
-- 在代码中添加具体的Review注释
-- 标记需要修改的问题和建议
-- 区分必须修改和可选优化
-
-#### 1.4.3 处理Review反馈
-- 开发者根据Review反馈修改代码
-- 回复每个Review注释（已修改/不修改的理由）
-- 如存在分歧，与Reviewers进行讨论
-- 修改完成后，重新发起Review（如需）
-
-#### 1.4.4 完成Review
-- 所有Review注释得到解决
-- 至少有1个Approval（根据项目要求）
-- 代码可以合并到主分支
-
-### 1.5 Review工具
-- **版本控制系统**: Git（GitHub、GitLab、Bitbucket等）
-- **代码Review工具**: GitHub Pull Requests、GitLab Merge Requests、Gerrit等
-- **静态代码分析**: PyLint、SonarQube、ESLint等
-
 ## 2. 代码去重规范
 
 ### 2.1 重复代码的危害
@@ -164,6 +135,8 @@ result2 = calculate_value(x, y, z, w)
 - 建立代码复用的机制和规范
 - 培养团队的DRY意识
 
+### 3.3 排查代码工具
+- deadcode/flake8 工具，排查重复函数 未使用函数
 ## 4. 附录
 
 ### 4.1 Review检查清单
@@ -176,10 +149,8 @@ result2 = calculate_value(x, y, z, w)
 - [ ] 测试覆盖全面
 - [ ] 重复代码已处理
 
-### 4.2 去重工具列表
-- **SonarQube**: 提供全面的重复代码分析
 
-### 4.3 参考资料
+### 4.2 参考资料
 - 《代码整洁之道》
 - 《Effective Python》
 - 《Clean Code》

@@ -3,17 +3,22 @@
 
 提供SQLite数据库的连接管理、会话创建和初始化功能
 """
-import os
-import yaml
+
 import logging
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import event
-from sqlalchemy.pool import StaticPool
-from contextlib import contextmanager, asynccontextmanager
-from typing import Optional, Generator
-from pathlib import Path
-import time
+import os
 import threading
+import time
+from contextlib import asynccontextmanager, contextmanager
+from pathlib import Path
+from typing import Generator, Optional
+
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
+from sqlalchemy.pool import StaticPool
+
+# 导入新的配置系统
+from kg.core.config_simple import config
 
 from .models import Base
 
@@ -23,97 +28,91 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """数据库管理器，负责数据库连接和会话管理"""
-    
-    def __init__(self, db_path: Optional[str] = None, config_path: Optional[str] = None):
+
+    def __init__(
+        self, db_path: Optional[str] = None, config_path: Optional[str] = None
+    ):
         """
         初始化数据库管理器
-        
+
         Args:
             db_path: 数据库文件路径，如果为None则从配置文件读取
             config_path: 配置文件路径，默认为项目根目录下的config.yaml
         """
         self.db_path = db_path
-        self.config_path = config_path or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'config.yaml')
+        self.config_path = config_path or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.yaml"
+        )
         self.engine = None
         self.SessionLocal = None
         self._connection_lock = threading.Lock()
         self._initialize_database()
-    
+
     def _load_config(self) -> dict:
-        """加载配置文件"""
-        try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-                return config
-        except Exception as e:
-            logger.warning(f"加载配置文件失败: {e}")
-            return {}
-    
+        """加载配置文件（兼容旧版本）"""
+        return {}
+
     def _get_db_path(self) -> str:
         """获取数据库文件路径"""
         if self.db_path:
             return self.db_path
-            
-        config = self._load_config()
-        db_path = config.get('database', {}).get('path', './data/financial_kg.db')
-        
-        # 确保目录存在
-        db_dir = os.path.dirname(db_path)
-        if db_dir and not os.path.exists(db_dir):
-            os.makedirs(db_dir, exist_ok=True)
-            
+
+        # 使用新的配置系统
+        db_path = config.database.DB_PATH
+
         return os.path.abspath(db_path)
-    
+
     def _initialize_database(self):
         """初始化数据库连接"""
         db_path = self._get_db_path()
-        
+
         # 创建SQLite异步引擎
         self.engine = create_async_engine(
-            f'sqlite+aiosqlite:///{db_path}',
+            f"sqlite+aiosqlite:///{db_path}",
             connect_args={
-                'timeout': 30,  # 30秒超时
-                'isolation_level': None  # 自动提交模式
+                "timeout": config.database.DB_TIMEOUT,  # 从配置获取超时时间
+                "isolation_level": None,  # 自动提交模式
             },
-            echo=False,  # 设置为True可以查看SQL语句
+            echo=config.database.DB_ECHO,  # 从配置获取回显设置
         )
-        
+
         # 添加连接事件监听器，用于性能监控
         @event.listens_for(self.engine.sync_engine, "before_cursor_execute")
-        def receive_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def receive_before_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             context._query_start_time = time.time()
-        
+
         @event.listens_for(self.engine.sync_engine, "after_cursor_execute")
-        def receive_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        def receive_after_cursor_execute(
+            conn, cursor, statement, parameters, context, executemany
+        ):
             total = time.time() - context._query_start_time
             if total > 0.5:  # 记录执行时间超过0.5秒的查询
                 logger.warning(f"慢查询: {statement[:100]}... 耗时: {total:.2f}秒")
-        
+
         # 创建异步会话工厂
         self.SessionLocal = async_sessionmaker(
-            bind=self.engine,
-            autocommit=False,
-            autoflush=False,
-            expire_on_commit=False
+            bind=self.engine, autocommit=False, autoflush=False, expire_on_commit=False
         )
-        
+
         logger.info("数据库连接已初始化")
-        
+
     async def create_tables_async(self):
         """异步创建数据库表"""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-    
+
     async def _create_tables(self):
         """异步创建数据库表"""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-    
+
     async def get_session(self):
         """获取数据库会话"""
         async with self.SessionLocal() as session:
             yield session
-    
+
     @asynccontextmanager
     async def session_scope(self):
         """提供异步会话作用域的上下文管理器"""
@@ -127,7 +126,7 @@ class DatabaseManager:
                 raise
             finally:
                 await session.close()
-    
+
     async def check_connection(self) -> bool:
         """检查数据库连接是否正常"""
         try:
@@ -137,7 +136,7 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"数据库连接检查失败: {e}")
             return False
-    
+
     def reconnect(self):
         """重新连接数据库"""
         with self._connection_lock:
@@ -148,7 +147,7 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"数据库重新连接失败: {e}")
                 raise
-    
+
     def close(self):
         """关闭数据库连接"""
         if self.SessionLocal:
@@ -175,6 +174,7 @@ async def get_db_session():
     async for session in get_db_manager().get_session():
         yield session
 
+
 @asynccontextmanager
 async def db_session():
     """数据库会话上下文管理器"""
@@ -182,14 +182,16 @@ async def db_session():
         yield session
 
 
-def init_database(db_path: Optional[str] = None, config_path: Optional[str] = None) -> DatabaseManager:
+def init_database(
+    db_path: Optional[str] = None, config_path: Optional[str] = None
+) -> DatabaseManager:
     """
     初始化数据库
-    
+
     Args:
         db_path: 数据库文件路径
         config_path: 配置文件路径
-    
+
     Returns:
         DatabaseManager: 数据库管理器实例
     """
@@ -198,14 +200,16 @@ def init_database(db_path: Optional[str] = None, config_path: Optional[str] = No
     return _db_manager
 
 
-async def init_database_async(db_path: Optional[str] = None, config_path: Optional[str] = None) -> DatabaseManager:
+async def init_database_async(
+    db_path: Optional[str] = None, config_path: Optional[str] = None
+) -> DatabaseManager:
     """
     异步初始化数据库
-    
+
     Args:
         db_path: 数据库文件路径
         config_path: 配置文件路径
-    
+
     Returns:
         DatabaseManager: 数据库管理器实例
     """

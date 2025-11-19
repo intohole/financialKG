@@ -2,13 +2,15 @@
 基于LangChain的关系抽取服务
 使用大模型从新闻文本中抽取实体间关系
 """
-from typing import Dict, Any, List, Optional
+
+from typing import Any, Dict, List, Optional
+
 from .langchain_base_service import LangChainBaseService
 
 
 class RelationExtractionService(LangChainBaseService):
     """关系抽取服务类"""
-    
+
     def __init__(self, config=None):
         """初始化关系抽取服务"""
         super().__init__()
@@ -34,7 +36,7 @@ class RelationExtractionService(LangChainBaseService):
 
 请以JSON格式返回结果，包含一个"relations"数组，数组中每个元素是一个关系对象。
 """
-        
+
         self.human_prompt = """
 请从以下新闻文本中抽取实体之间的关系：
 
@@ -47,37 +49,39 @@ class RelationExtractionService(LangChainBaseService):
 4. 置信度评估合理
 5. 返回有效的JSON格式
 """
-    
+
     async def extract_relations(self, text: str) -> Dict[str, Any]:
         """
         从文本中抽取关系
-        
+
         Args:
             text: 新闻文本
-            
+
         Returns:
             包含关系列表的字典
         """
         inputs = {"text": text}
         return await self.extract_structured_data(
-            self.system_prompt,
-            self.human_prompt,
-            inputs
+            self.system_prompt, self.human_prompt, inputs
         )
 
-    async def extract_relations_with_entities(self, text: str, entities: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def extract_relations_with_entities(
+        self, text: str, entities: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """
         基于给定实体列表抽取关系
-        
+
         Args:
             text: 新闻文本
             entities: 实体列表，每个实体包含name和type
-            
+
         Returns:
             包含关系列表的字典
         """
-        entity_list = "\n".join([f"- {e['name']} ({e.get('type', 'Unknown')})" for e in entities])
-        
+        entity_list = "\n".join(
+            [f"- {e['name']} ({e.get('type', 'Unknown')})" for e in entities]
+        )
+
         entity_specific_prompt = f"""
 你是一个专业的关系抽取专家，专门从新闻文本中抽取给定实体之间的关系。
 
@@ -93,7 +97,7 @@ class RelationExtractionService(LangChainBaseService):
 
 请以JSON格式返回结果，包含一个"relations"数组，数组中每个元素是一个关系对象。
 """
-        
+
         human_prompt = f"""
 请从以下新闻文本中抽取给定实体之间的关系：
 
@@ -111,22 +115,22 @@ class RelationExtractionService(LangChainBaseService):
 5. 置信度评估合理
 6. 返回有效的JSON格式
 """
-        
+
         inputs = {"text": text}
         return await self.extract_structured_data(
-            entity_specific_prompt,
-            human_prompt,
-            inputs
+            entity_specific_prompt, human_prompt, inputs
         )
 
-    async def extract_relations_by_type(self, text: str, relation_types: List[str]) -> Dict[str, Any]:
+    async def extract_relations_by_type(
+        self, text: str, relation_types: List[str]
+    ) -> Dict[str, Any]:
         """
         按指定类型抽取关系
-        
+
         Args:
             text: 新闻文本
             relation_types: 要抽取的关系类型列表
-            
+
         Returns:
             包含指定类型关系列表的字典
         """
@@ -145,7 +149,7 @@ class RelationExtractionService(LangChainBaseService):
 
 请以JSON格式返回结果，包含一个"relations"数组，数组中每个元素是一个关系对象。
 """
-        
+
         human_prompt = f"""
 请从以下新闻文本中只抽取{', '.join(relation_types)}类型的关系：
 
@@ -160,32 +164,32 @@ class RelationExtractionService(LangChainBaseService):
 5. 置信度评估合理
 6. 返回有效的JSON格式
 """
-        
+
         inputs = {"text": text}
         return await self.extract_structured_data(
-            type_specific_prompt,
-            human_prompt,
-            inputs
+            type_specific_prompt, human_prompt, inputs
         )
 
-    async def extract_relations_with_context(self, text: str, context: Optional[str] = None) -> Dict[str, Any]:
+    async def extract_relations_with_context(
+        self, text: str, context: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         带上下文的关系抽取
-        
+
         Args:
             text: 新闻文本
             context: 上下文信息（可选）
-            
+
         Returns:
             包含关系列表的字典
         """
         context_prompt = self.system_prompt
-        
+
         if context:
             context_prompt += f"\n\n上下文信息：{context}"
-        
+
         human_prompt = self.human_prompt
-        
+
         if context:
             human_prompt = f"""
 请结合以下上下文信息，从新闻文本中抽取实体之间的关系：
@@ -204,10 +208,6 @@ class RelationExtractionService(LangChainBaseService):
 5. 置信度评估合理
 6. 返回有效的JSON格式
 """
-        
+
         inputs = {"text": text}
-        return await self.extract_structured_data(
-            context_prompt,
-            human_prompt,
-            inputs
-        )
+        return await self.extract_structured_data(context_prompt, human_prompt, inputs)

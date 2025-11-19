@@ -2,9 +2,11 @@
 JSON解析器
 用于从LLM响应中解析结构化JSON数据
 """
-from typing import Dict, Any, Optional
-from langchain_core.output_parsers import BaseOutputParser
+
 import json
+from typing import Any, Dict, Optional
+
+from langchain_core.output_parsers import BaseOutputParser
 
 
 class JsonParser(BaseOutputParser[Dict[str, Any]]):
@@ -12,17 +14,17 @@ class JsonParser(BaseOutputParser[Dict[str, Any]]):
     JSON解析器类
     从LLM响应中解析结构化JSON数据
     """
-    
+
     def __init__(self):
         """
         初始化JSON解析器
         """
         pass
-    
+
     def get_format_instructions(self) -> str:
         """
         获取JSON格式说明
-        
+
         Returns:
             JSON格式说明字符串
         """
@@ -37,14 +39,14 @@ JSON格式示例：
     ]
 }}
 """
-    
+
     def parse(self, text: str) -> Dict[str, Any]:
         """
         解析JSON字符串
-        
+
         Args:
             text: 包含JSON的文本
-            
+
         Returns:
             解析后的JSON对象
         """
@@ -54,15 +56,16 @@ JSON格式示例：
         except json.JSONDecodeError:
             # 尝试提取JSON部分
             import re
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+
+            json_match = re.search(r"\{.*\}", text, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
                 return json.loads(json_str)
             else:
                 # 尝试更宽松的提取
-                lines = [line for line in text.strip().split('\n') if line.strip()]
-                if lines[0].strip() == '{' and lines[-1].strip() == '}':
-                    json_str = '\n'.join(lines)
+                lines = [line for line in text.strip().split("\n") if line.strip()]
+                if lines[0].strip() == "{" and lines[-1].strip() == "}":
+                    json_str = "\n".join(lines)
                     return json.loads(json_str)
                 else:
                     raise ValueError(f"无法解析JSON: {text}")

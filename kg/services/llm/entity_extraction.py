@@ -2,13 +2,15 @@
 基于LangChain的实体抽取服务
 使用大模型从新闻文本中抽取实体
 """
-from typing import Dict, Any, List, Optional
+
+from typing import Any, Dict, List, Optional
+
 from .langchain_base_service import LangChainBaseService
 
 
 class EntityExtractionService(LangChainBaseService):
     """实体抽取服务类"""
-    
+
     def __init__(self, config=None):
         """初始化实体抽取服务"""
         super().__init__()
@@ -33,7 +35,7 @@ class EntityExtractionService(LangChainBaseService):
 
 请以JSON格式返回结果，包含一个"entities"数组，数组中每个元素是一个实体对象。
 """
-        
+
         self.human_prompt = """
 请从以下新闻文本中抽取实体：
 
@@ -45,32 +47,32 @@ class EntityExtractionService(LangChainBaseService):
 3. 置信度评估合理
 4. 返回有效的JSON格式
 """
-    
+
     async def extract_entities(self, text: str) -> Dict[str, Any]:
         """
         从文本中抽取实体
-        
+
         Args:
             text: 新闻文本
-            
+
         Returns:
             包含实体列表的字典
         """
         inputs = {"text": text}
         return await self.extract_structured_data(
-            self.system_prompt,
-            self.human_prompt,
-            inputs
+            self.system_prompt, self.human_prompt, inputs
         )
 
-    async def extract_entities_by_type(self, text: str, entity_types: List[str]) -> Dict[str, Any]:
+    async def extract_entities_by_type(
+        self, text: str, entity_types: List[str]
+    ) -> Dict[str, Any]:
         """
         按指定类型抽取实体
-        
+
         Args:
             text: 新闻文本
             entity_types: 要抽取的实体类型列表
-            
+
         Returns:
             包含指定类型实体列表的字典
         """
@@ -88,7 +90,7 @@ class EntityExtractionService(LangChainBaseService):
 
 请以JSON格式返回结果，包含一个"entities"数组，数组中每个元素是一个实体对象。
 """
-        
+
         human_prompt = f"""
 请从以下新闻文本中只抽取{', '.join(entity_types)}类型的实体：
 
@@ -101,32 +103,32 @@ class EntityExtractionService(LangChainBaseService):
 4. 置信度评估合理
 5. 返回有效的JSON格式
 """
-        
+
         inputs = {"text": text}
         return await self.extract_structured_data(
-            type_specific_prompt,
-            human_prompt,
-            inputs
+            type_specific_prompt, human_prompt, inputs
         )
 
-    async def extract_entities_with_context(self, text: str, context: Optional[str] = None) -> Dict[str, Any]:
+    async def extract_entities_with_context(
+        self, text: str, context: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         带上下文的实体抽取
-        
+
         Args:
             text: 新闻文本
             context: 上下文信息（可选）
-            
+
         Returns:
             包含实体列表的字典
         """
         context_prompt = self.system_prompt
-        
+
         if context:
             context_prompt += f"\n\n上下文信息：{context}"
-        
+
         human_prompt = self.human_prompt
-        
+
         if context:
             human_prompt = f"""
 请结合以下上下文信息，从新闻文本中抽取实体：
@@ -144,10 +146,6 @@ class EntityExtractionService(LangChainBaseService):
 4. 置信度评估合理
 5. 返回有效的JSON格式
 """
-        
+
         inputs = {"text": text}
-        return await self.extract_structured_data(
-            context_prompt,
-            human_prompt,
-            inputs
-        )
+        return await self.extract_structured_data(context_prompt, human_prompt, inputs)

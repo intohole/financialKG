@@ -2,13 +2,15 @@
 基于LangChain的实体聚合服务
 对相似实体进行聚合处理
 """
-from typing import Dict, Any, List, Optional, Tuple
+
+from typing import Any, Dict, List, Optional, Tuple
+
 from .langchain_base_service import LangChainBaseService
 
 
 class EntityAggregationService(LangChainBaseService):
     """实体聚合服务类"""
-    
+
     def __init__(self, config=None):
         """初始化实体聚合服务"""
         super().__init__()
@@ -41,7 +43,7 @@ class EntityAggregationService(LangChainBaseService):
 - unaggregated_entities: 未能聚合的实体列表
 - statistics: 聚合统计信息
 """
-        
+
         self.human_prompt = """
 请对以下实体列表进行聚合分析：
 
@@ -54,46 +56,48 @@ class EntityAggregationService(LangChainBaseService):
 4. 保留实体的关键属性和类型信息
 5. 返回有效的JSON格式
 """
-    
+
     def aggregate_entities(self, entities: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         聚合相似实体
-        
+
         Args:
             entities: 实体列表，每个实体包含name、type等属性
-            
+
         Returns:
             包含聚合结果的字典
         """
         # 将实体列表格式化为字符串
-        entities_str = "\n".join([
-            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
-            f"类型: {entity.get('type', '未知')}, "
-            f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
-            for i, entity in enumerate(entities)
-        ])
-        
+        entities_str = "\n".join(
+            [
+                f"- {i+1}. 名称: {entity.get('name', '未知')}, "
+                f"类型: {entity.get('type', '未知')}, "
+                f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
+                for i, entity in enumerate(entities)
+            ]
+        )
+
         inputs = {"entities": entities_str}
         return self.extract_structured_data(
-            self.system_prompt,
-            self.human_prompt,
-            inputs
+            self.system_prompt, self.human_prompt, inputs
         )
-    
-    def aggregate_entities_by_type(self, entities: List[Dict[str, Any]], entity_type: str) -> Dict[str, Any]:
+
+    def aggregate_entities_by_type(
+        self, entities: List[Dict[str, Any]], entity_type: str
+    ) -> Dict[str, Any]:
         """
         按实体类型聚合相似实体
-        
+
         Args:
             entities: 实体列表
             entity_type: 要聚合的实体类型
-            
+
         Returns:
             包含聚合结果的字典
         """
         # 过滤出指定类型的实体
-        filtered_entities = [e for e in entities if e.get('type') == entity_type]
-        
+        filtered_entities = [e for e in entities if e.get("type") == entity_type]
+
         type_specific_prompt = f"""
 你是一个专业的实体聚合专家，专门对{entity_type}类型的相似实体进行识别、分析和聚合。
 
@@ -121,14 +125,16 @@ class EntityAggregationService(LangChainBaseService):
 - unaggregated_entities: 未能聚合的实体列表
 - statistics: 聚合统计信息
 """
-        
+
         # 将实体列表格式化为字符串
-        entities_str = "\n".join([
-            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
-            f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
-            for i, entity in enumerate(filtered_entities)
-        ])
-        
+        entities_str = "\n".join(
+            [
+                f"- {i+1}. 名称: {entity.get('name', '未知')}, "
+                f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
+                for i, entity in enumerate(filtered_entities)
+            ]
+        )
+
         human_prompt = f"""
 请对以下{entity_type}实体列表进行聚合分析：
 
@@ -141,22 +147,20 @@ class EntityAggregationService(LangChainBaseService):
 4. 保留{entity_type}实体的关键属性
 5. 返回有效的JSON格式
 """
-        
+
         inputs = {"entities": entities_str}
-        return self.extract_structured_data(
-            type_specific_prompt,
-            human_prompt,
-            inputs
-        )
-    
-    async def find_duplicate_entities(self, entities: List[Dict[str, Any]], similarity_threshold: float = 0.8) -> Dict[str, Any]:
+        return self.extract_structured_data(type_specific_prompt, human_prompt, inputs)
+
+    async def find_duplicate_entities(
+        self, entities: List[Dict[str, Any]], similarity_threshold: float = 0.8
+    ) -> Dict[str, Any]:
         """
         查找重复或高度相似的实体
-        
+
         Args:
             entities: 实体列表
             similarity_threshold: 相似度阈值
-            
+
         Returns:
             包含重复实体的字典
         """
@@ -184,15 +188,17 @@ class EntityAggregationService(LangChainBaseService):
 - unique_entities: 唯一实体列表
 - statistics: 重复统计信息
 """
-        
+
         # 将实体列表格式化为字符串
-        entities_str = "\n".join([
-            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
-            f"类型: {entity.get('type', '未知')}, "
-            f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
-            for i, entity in enumerate(entities)
-        ])
-        
+        entities_str = "\n".join(
+            [
+                f"- {i+1}. 名称: {entity.get('name', '未知')}, "
+                f"类型: {entity.get('type', '未知')}, "
+                f"属性: {str(entity.get('attributes', {})).replace('{', '{{').replace('}', '}}')}"
+                for i, entity in enumerate(entities)
+            ]
+        )
+
         human_prompt = f"""
 请从以下实体列表中识别重复或高度相似的实体（相似度阈值: {similarity_threshold}）：
 
@@ -204,21 +210,19 @@ class EntityAggregationService(LangChainBaseService):
 3. 给出合理的实体合并建议
 4. 返回有效的JSON格式
 """
-        
+
         inputs = {"entities": entities_str}
         return await self.extract_structured_data(
-            duplicate_prompt,
-            human_prompt,
-            inputs
+            duplicate_prompt, human_prompt, inputs
         )
-    
+
     def merge_entity_attributes(self, entities: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         合并实体的属性
-        
+
         Args:
             entities: 实体列表
-            
+
         Returns:
             包含合并后属性的字典
         """
@@ -246,7 +250,7 @@ class EntityAggregationService(LangChainBaseService):
 - conflicts: 属性冲突及解决方案
 - statistics: 合并统计信息
 """
-        
+
         human_prompt = """
 请合并以下实体的属性：
 
@@ -259,18 +263,16 @@ class EntityAggregationService(LangChainBaseService):
 4. 提供详细的合并说明
 5. 返回有效的JSON格式
 """
-        
+
         # 将实体列表格式化为字符串
-        entities_str = "\n".join([
-            f"- {i+1}. 名称: {entity.get('name', '未知')}, "
-            f"类型: {entity.get('type', '未知')}, "
-            f"属性: {entity.get('attributes', {})}"
-            for i, entity in enumerate(entities)
-        ])
-        
-        inputs = {"entities": entities_str}
-        return self.extract_structured_data(
-            merge_prompt,
-            human_prompt,
-            inputs
+        entities_str = "\n".join(
+            [
+                f"- {i+1}. 名称: {entity.get('name', '未知')}, "
+                f"类型: {entity.get('type', '未知')}, "
+                f"属性: {entity.get('attributes', {})}"
+                for i, entity in enumerate(entities)
+            ]
         )
+
+        inputs = {"entities": entities_str}
+        return self.extract_structured_data(merge_prompt, human_prompt, inputs)

@@ -2,13 +2,15 @@
 基于LangChain的新闻摘要服务
 使用大模型生成新闻摘要
 """
-from typing import Dict, Any, List, Optional
+
+from typing import Any, Dict, List, Optional
+
 from .langchain_base_service import LangChainBaseService
 
 
 class NewsSummarizationService(LangChainBaseService):
     """新闻摘要服务类"""
-    
+
     def __init__(self, config=None):
         """初始化新闻摘要服务"""
         super().__init__()
@@ -38,7 +40,7 @@ class NewsSummarizationService(LangChainBaseService):
 - outlook: 未来展望
 - summary: 整体摘要（3-5句话）
 """
-        
+
         self.human_prompt = """
 请为以下新闻文章生成摘要：
 
@@ -50,32 +52,32 @@ class NewsSummarizationService(LangChainBaseService):
 3. 语言简洁明了，结构清晰
 4. 返回有效的JSON格式
 """
-    
+
     async def generate_summary(self, text: str) -> Dict[str, Any]:
         """
         生成新闻摘要
-        
+
         Args:
             text: 新闻文本
-            
+
         Returns:
             包含摘要信息的字典
         """
         inputs = {"text": text}
         return await self.extract_structured_data(
-            self.system_prompt,
-            self.human_prompt,
-            inputs
+            self.system_prompt, self.human_prompt, inputs
         )
 
-    async def generate_short_summary(self, text: str, max_sentences: int = 3) -> Dict[str, Any]:
+    async def generate_short_summary(
+        self, text: str, max_sentences: int = 3
+    ) -> Dict[str, Any]:
         """
         生成简短摘要
-        
+
         Args:
             text: 新闻文本
             max_sentences: 最大句子数
-            
+
         Returns:
             包含简短摘要的字典
         """
@@ -88,7 +90,7 @@ class NewsSummarizationService(LangChainBaseService):
 - title: 摘要标题
 - summary: 简短摘要（不超过{max_sentences}句话）
 """
-        
+
         human_prompt = f"""
 请为以下新闻文章生成一个不超过{max_sentences}句话的简短摘要：
 
@@ -101,22 +103,18 @@ class NewsSummarizationService(LangChainBaseService):
 4. 不超过{max_sentences}句话
 5. 返回有效的JSON格式
 """
-        
+
         inputs = {"text": text}
-        return await self.extract_structured_data(
-            short_prompt,
-            human_prompt,
-            inputs
-        )
+        return await self.extract_structured_data(short_prompt, human_prompt, inputs)
 
     async def generate_topic_summary(self, text: str, topic: str) -> Dict[str, Any]:
         """
         生成特定主题的摘要
-        
+
         Args:
             text: 新闻文本
             topic: 特定主题
-            
+
         Returns:
             包含主题摘要的字典
         """
@@ -139,7 +137,7 @@ class NewsSummarizationService(LangChainBaseService):
 - impact: 主题相关影响
 - summary: 主题摘要
 """
-        
+
         human_prompt = f"""
 请从以下新闻文章中提取与"{topic}"相关的信息，并生成一个专门针对该主题的摘要：
 
@@ -153,27 +151,25 @@ class NewsSummarizationService(LangChainBaseService):
 4. 结构清晰，逻辑连贯
 5. 返回有效的JSON格式
 """
-        
-        inputs = {"text": text}
-        return await self.extract_structured_data(
-            topic_prompt,
-            human_prompt,
-            inputs
-        )
 
-    async def generate_multi_view_summary(self, text: str, perspectives: List[str]) -> Dict[str, Any]:
+        inputs = {"text": text}
+        return await self.extract_structured_data(topic_prompt, human_prompt, inputs)
+
+    async def generate_multi_view_summary(
+        self, text: str, perspectives: List[str]
+    ) -> Dict[str, Any]:
         """
         生成多角度摘要
-        
+
         Args:
             text: 新闻文本
             perspectives: 不同角度/视角列表
-            
+
         Returns:
             包含多角度摘要的字典
         """
         perspective_list = "\n".join([f"- {p}" for p in perspectives])
-        
+
         multi_view_prompt = f"""
 你是一个专业的新闻摘要专家，能够从多个角度分析新闻文章并生成摘要。
 
@@ -193,7 +189,7 @@ class NewsSummarizationService(LangChainBaseService):
   - summary: 该角度的摘要
   - key_points: 关键信息点
 """
-        
+
         human_prompt = f"""
 请从以下多个角度分析新闻文章，并为每个角度生成专门的摘要：
 
@@ -210,10 +206,8 @@ class NewsSummarizationService(LangChainBaseService):
 4. 结构清晰，逻辑连贯
 5. 返回有效的JSON格式
 """
-        
+
         inputs = {"text": text}
         return await self.extract_structured_data(
-            multi_view_prompt,
-            human_prompt,
-            inputs
+            multi_view_prompt, human_prompt, inputs
         )
