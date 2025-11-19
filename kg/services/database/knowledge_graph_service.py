@@ -712,8 +712,8 @@ class KnowledgeGraphService:
         """更新实体信息"""
         logger.info(f"更新实体 ID: {entity_id}")
         logger.debug(f"更新参数: {update_data}")
-        # 将Pydantic模型转换为字典
-        update_dict = update_data.model_dump(exclude_unset=True)
+        # 将Pydantic模型转换为字典，并使用别名
+        update_dict = update_data.model_dump(exclude_unset=True, by_alias=True)
         return await self.entity_service.update_entity(entity_id, **update_dict)
 
     @handle_db_errors(default_return=False)

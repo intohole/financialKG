@@ -60,7 +60,7 @@ class EntityUpdate(BaseModel):
         None, min_length=1, max_length=500, description="实体名称"
     )
     entity_type: Optional[str] = Field(
-        None, min_length=1, max_length=100, description="实体类型"
+        None, min_length=1, max_length=100, description="实体类型", alias="type"
     )
     canonical_name: Optional[str] = Field(
         None, max_length=500, description="规范实体名称"
@@ -69,6 +69,9 @@ class EntityUpdate(BaseModel):
     weight: Optional[float] = Field(None, description="实体权重")
     source: Optional[str] = Field(None, max_length=100, description="实体来源")
     properties: Optional[Dict[str, Any]] = Field(None, description="实体属性")
+
+    class Config:
+        populate_by_name = True
 
 
 class Entity(EntityBase):

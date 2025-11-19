@@ -192,9 +192,88 @@ function renderPagination(paginationData) {
     
     const { total, page, size, total_pages } = paginationData;
     
+    // Create pagination HTML with page size selector
+    const pageSizeOptions = [10, 20, 50, 100, 200];
+    
+    // Generate page buttons with ellipsis logic
+    function generatePageButtons(currentPage, totalPages) {
+        const maxVisiblePages = 5;
+        const pages = [];
+        
+        if (totalPages <= maxVisiblePages) {
+            // Show all pages if total is less than max visible
+            for (let i = 1; i <= totalPages; i++) {
+                pages.push(`
+                    <li class="page-item ${currentPage === i ? 'active' : ''}">
+                        <button class="page-link" onclick="fetchEntities(${i}, ${size})"><br>
+                            ${i}
+                        </button>
+                    </li>
+                `);
+            }
+        } else {
+            // Show first page
+            pages.push(`
+                <li class="page-item ${currentPage === 1 ? 'active' : ''}">
+                    <button class="page-link" onclick="fetchEntities(1, ${size})"><br>
+                        1
+                    </button>
+                </li>
+            `);
+            
+            // Show ellipsis if current page is far from first page
+            if (currentPage > 3) {
+                pages.push('<li class="page-item disabled"><span class="page-link">...</span></li>');
+            }
+            
+            // Show pages around current page
+            const startPage = Math.max(2, currentPage - 1);
+            const endPage = Math.min(totalPages - 1, currentPage + 1);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                pages.push(`
+                    <li class="page-item ${currentPage === i ? 'active' : ''}">
+                        <button class="page-link" onclick="fetchEntities(${i}, ${size})"><br>
+                            ${i}
+                        </button>
+                    </li>
+                `);
+            }
+            
+            // Show ellipsis if current page is far from last page
+            if (currentPage < totalPages - 2) {
+                pages.push('<li class="page-item disabled"><span class="page-link">...</span></li>');
+            }
+            
+            // Show last page
+            pages.push(`
+                <li class="page-item ${currentPage === totalPages ? 'active' : ''}">
+                    <button class="page-link" onclick="fetchEntities(${totalPages}, ${size})"><br>
+                        ${totalPages}
+                    </button>
+                </li>
+            `);
+        }
+        
+        return pages.join('');
+    }
+    
     // Create pagination HTML
     const paginationHtml = `
         <nav aria-label="Entity pagination">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="dropdown">
+                    <label class="form-label me-2">每页显示:</label>
+                    <select id="page-size-select" class="form-select form-select-sm d-inline-block w-auto" onchange="fetchEntities(1, this.value)">
+                        ${pageSizeOptions.map(option => `
+                            <option value="${option}" ${size === option ? 'selected' : ''}>${option}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="text-muted">
+                    <small>显示第 ${page} 页，共 ${total_pages} 页，总计 ${total} 条记录</small>
+                </div>
+            </div>
             <ul class="pagination justify-content-center">
                 <!-- Previous Page Button -->
                 <li class="page-item ${page === 1 ? 'disabled' : ''}">
@@ -204,14 +283,7 @@ function renderPagination(paginationData) {
                 </li>
                 
                 <!-- Page Buttons -->
-                ${Array.from({ length: total_pages }, (_, i) => i + 1)
-                    .map(pageNumber => `
-                        <li class="page-item ${page === pageNumber ? 'active' : ''}">
-                            <button class="page-link" onclick="fetchEntities(${pageNumber}, ${size})">
-                                ${pageNumber}
-                            </button>
-                        </li>
-                    `).join('')}
+                ${generatePageButtons(page, total_pages)}
                 
                 <!-- Next Page Button -->
                 <li class="page-item ${page === total_pages ? 'disabled' : ''}">
@@ -220,9 +292,6 @@ function renderPagination(paginationData) {
                     </button>
                 </li>
             </ul>
-            <div class="text-center mt-2">
-                <small>显示第 ${page} 页，共 ${total_pages} 页，总计 ${total} 条记录</small>
-            </div>
         </nav>
     `;
     

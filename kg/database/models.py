@@ -67,6 +67,7 @@ class Entity(Base):
         Index("idx_entity_group", "entity_group_id"),
         Index("idx_entity_canonical", "canonical_name"),
         Index("idx_entity_name_type", "name", "type"),  # 复合索引用于查找
+        Index("idx_entity_name", "name"),  # 单个name字段索引，用于name IN查询
         Index("idx_entity_updated_at", sa.desc("updated_at")),  # 索引用于按更新时间排序
         Index("idx_entity_type_updated_at", "type", sa.desc("updated_at")),  # 复合索引用于按类型过滤并按更新时间排序
         sa.UniqueConstraint(
