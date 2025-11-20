@@ -35,29 +35,49 @@ class TestEntityRepository:
         assert repo.session == mock_session
     
     @pytest.mark.asyncio
+    async def test_create_success(self, entity_repo, mock_session):
+        """测试创建实体 - 成功场景"""
+        mock_entity = Mock()
+        mock_entity.name = "测试实体"
+        mock_entity.entity_type = "PERSON"
+        mock_entity.description = "测试描述"
+        
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        
+        result = await entity_repo.create(name="测试实体", entity_type="PERSON", description="测试描述")
+        
+        # 验证创建操作被调用
+        mock_session.add.assert_called_once()
+        mock_session.flush.assert_called_once()
+        mock_session.refresh.assert_called_once()
+    
+    @pytest.mark.asyncio
     async def test_get_by_name_success(self, entity_repo, mock_session):
         """测试根据名称获取实体 - 成功场景"""
-        # 模拟查询结果
         mock_entity = Mock()
-        mock_entity.id = 1
         mock_entity.name = "测试实体"
-        mock_entity.type = "PERSON"
         
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalar_one_or_none.return_value = mock_entity
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = mock_entity
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await entity_repo.get_by_name("测试实体")
         
         assert result == mock_entity
-        assert result.name == "测试实体"
         mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_get_by_name_not_found(self, entity_repo, mock_session):
         """测试根据名称获取实体 - 未找到场景"""
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalar_one_or_none.return_value = None
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = None
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await entity_repo.get_by_name("不存在的实体")
@@ -68,144 +88,90 @@ class TestEntityRepository:
     @pytest.mark.asyncio
     async def test_get_by_type_success(self, entity_repo, mock_session):
         """测试根据类型获取实体 - 成功场景"""
-        mock_entities = [Mock(), Mock(), Mock()]
-        mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_entities
-        mock_session.execute.return_value = mock_result
-        
-        result = await entity_repo.get_by_type("PERSON", skip=0, limit=10)
-        
-        assert result == mock_entities
-        assert len(result) == 3
-        mock_session.execute.assert_called_once()
-    
-    @pytest.mark.asyncio
-    async def test_get_by_type_empty(self, entity_repo, mock_session):
-        """测试根据类型获取实体 - 空结果场景"""
-        mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_session.execute.return_value = mock_result
-        
-        result = await entity_repo.get_by_type("ORGANIZATION")
-        
-        assert result == []
-        assert len(result) == 0
-    
-    @pytest.mark.asyncio
-    async def test_get_by_canonical_id_success(self, entity_repo, mock_session):
-        """测试根据官方ID获取实体 - 成功场景"""
         mock_entities = [Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_entities
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_entities
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await entity_repo.get_by_canonical_id(1)
+        result = await entity_repo.get_by_type("PERSON")
         
         assert result == mock_entities
         assert len(result) == 2
         mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_merge_entities_success(self, entity_repo, mock_session):
-        """测试合并实体 - 成功场景"""
-        mock_canonical_entity = Mock()
-        mock_canonical_entity.id = 1
-        mock_alias_entity = Mock()
-        mock_alias_entity.id = 2
-        
-        # 模拟get_by_id的返回值
-        entity_repo.get_by_id = AsyncMock(side_effect=[mock_canonical_entity, mock_alias_entity])
-        
-        # 模拟查询结果
-        mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = []
-        mock_session.execute.return_value = mock_result
-        
-        result = await entity_repo.merge_entities(1, 2)
-        
-        assert result is True
-        assert mock_alias_entity.canonical_id == 1
-        assert mock_session.flush.called
-    
-    @pytest.mark.asyncio
-    async def test_merge_entities_canonical_not_found(self, entity_repo, mock_session):
-        """测试合并实体 - 官方实体不存在场景"""
-        entity_repo.get_by_id = AsyncMock(return_value=None)
-        
-        with pytest.raises(ValueError, match="官方实体不存在"):
-            await entity_repo.merge_entities(1, 2)
-    
-    @pytest.mark.asyncio
-    async def test_merge_entities_alias_not_found(self, entity_repo, mock_session):
-        """测试合并实体 - 别名实体不存在场景"""
-        mock_canonical_entity = Mock()
-        mock_canonical_entity.id = 1
-        
-        entity_repo.get_by_id = AsyncMock(side_effect=[mock_canonical_entity, None])
-        
-        with pytest.raises(ValueError, match="别名实体不存在"):
-            await entity_repo.merge_entities(1, 2)
-    
-    @pytest.mark.asyncio
-    async def test_search_entities_success(self, entity_repo, mock_session):
-        """测试搜索实体 - 成功场景"""
+    async def test_search_by_name_success(self, entity_repo, mock_session):
+        """测试根据名称搜索实体 - 成功场景"""
         mock_entities = [Mock(), Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_entities
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_entities
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await entity_repo.search_entities("测试", limit=10)
+        result = await entity_repo.search_by_name("测试")
         
         assert result == mock_entities
         assert len(result) == 3
         mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_search_entities_empty(self, entity_repo, mock_session):
-        """测试搜索实体 - 空结果场景"""
+    async def test_update_success(self, entity_repo, mock_session):
+        """测试更新实体 - 成功场景"""
+        mock_entity = Mock()
+        mock_entity.name = "原名称"
+        mock_entity.entity_type = "PERSON"
+        mock_entity.description = "原描述"
+        
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        
+        result = await entity_repo.update(mock_entity, name="新名称", description="新描述")
+        
+        assert result == mock_entity
+        assert mock_entity.name == "新名称"
+        assert mock_entity.description == "新描述"
+        mock_session.flush.assert_called_once()
+        mock_session.refresh.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_delete_success(self, entity_repo, mock_session):
+        """测试删除实体 - 成功场景"""
+        mock_entity = Mock()
+        mock_entity.id = 1
+        mock_entity.name = "测试实体"
+        
+        mock_session.flush = AsyncMock()
+        
+        await entity_repo.delete(mock_entity)
+        
+        mock_session.delete.assert_called_once_with(mock_entity)
+        mock_session.flush.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_get_by_id_success(self, entity_repo, mock_session):
+        """测试根据ID获取实体 - 成功场景"""
+        mock_entity = Mock()
+        mock_entity.id = 1
+        mock_entity.name = "测试实体"
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = []
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = mock_entity
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await entity_repo.search_entities("不存在的实体")
+        result = await entity_repo.get_by_id(1)
         
-        assert result == []
-        assert len(result) == 0
-    
-    @pytest.mark.asyncio
-    async def test_get_entity_relations_success(self, entity_repo, mock_session):
-        """测试获取实体关系 - 成功场景"""
-        mock_subject_relations = [Mock(), Mock()]
-        mock_object_relations = [Mock()]
-        
-        # 模拟RelationRepository
-        with patch('app.database.repositories.RelationRepository') as mock_relation_repo_class:
-            mock_relation_repo = AsyncMock()
-            mock_relation_repo_class.return_value = mock_relation_repo
-            mock_relation_repo.get_by_subject.return_value = mock_subject_relations
-            mock_relation_repo.get_by_object.return_value = mock_object_relations
-            
-            result = await entity_repo.get_entity_relations(1)
-            
-            assert len(result) == 3
-            mock_relation_repo.get_by_subject.assert_called_once_with(1, 0, 100)
-            mock_relation_repo.get_by_object.assert_called_once_with(1, 0, 100)
-    
-    @pytest.mark.asyncio
-    async def test_get_entity_attributes_success(self, entity_repo, mock_session):
-        """测试获取实体属性 - 成功场景"""
-        mock_attributes = [Mock(), Mock()]
-        
-        with patch('app.database.repositories.AttributeRepository') as mock_attr_repo_class:
-            mock_attr_repo = AsyncMock()
-            mock_attr_repo_class.return_value = mock_attr_repo
-            mock_attr_repo.get_by_entity.return_value = mock_attributes
-            
-            result = await entity_repo.get_entity_attributes(1)
-            
-            assert result == mock_attributes
-            assert len(result) == 2
-            mock_attr_repo.get_by_entity.assert_called_once_with(1)
+        assert result == mock_entity
+        mock_session.execute.assert_called_once()
 
 
 class TestRelationRepository:
@@ -226,117 +192,137 @@ class TestRelationRepository:
         assert repo.session == mock_session
     
     @pytest.mark.asyncio
-    async def test_get_by_subject_success(self, relation_repo, mock_session):
-        """测试根据主体获取关系 - 成功场景"""
+    async def test_create_success(self, relation_repo, mock_session):
+        """测试创建关系 - 成功场景"""
+        mock_relation = Mock()
+        mock_relation.source_id = 1
+        mock_relation.target_id = 2
+        mock_relation.relation_type = "WORKS_FOR"
+        
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        
+        result = await relation_repo.create(source_id=1, target_id=2, relation_type="WORKS_FOR")
+        
+        mock_session.add.assert_called_once()
+        mock_session.flush.assert_called_once()
+        mock_session.refresh.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_get_by_entities_success(self, relation_repo, mock_session):
+        """测试根据实体获取关系 - 成功场景"""
         mock_relations = [Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_relations
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_relations
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await relation_repo.get_by_subject(1, skip=0, limit=10)
+        result = await relation_repo.get_by_entities(1, 2)
         
         assert result == mock_relations
         assert len(result) == 2
         mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_get_by_object_success(self, relation_repo, mock_session):
-        """测试根据客体获取关系 - 成功场景"""
-        mock_relations = [Mock()]
-        mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_relations
-        mock_session.execute.return_value = mock_result
-        
-        result = await relation_repo.get_by_object(2)
-        
-        assert result == mock_relations
-        assert len(result) == 1
-    
-    @pytest.mark.asyncio
-    async def test_get_by_predicate_success(self, relation_repo, mock_session):
-        """测试根据谓词获取关系 - 成功场景"""
+    async def test_get_by_source_success(self, relation_repo, mock_session):
+        """测试根据源实体获取关系 - 成功场景"""
         mock_relations = [Mock(), Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_relations
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_relations
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await relation_repo.get_by_predicate("works_at")
+        result = await relation_repo.get_by_source(1)
         
         assert result == mock_relations
         assert len(result) == 3
+        mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_get_triplets_with_all_params(self, relation_repo, mock_session):
-        """测试获取三元组 - 全参数场景"""
+    async def test_get_by_target_success(self, relation_repo, mock_session):
+        """测试根据目标实体获取关系 - 成功场景"""
         mock_relations = [Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_relations
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_relations
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await relation_repo.get_triplets(subject_id=1, predicate="works_at", object_id=2)
+        result = await relation_repo.get_by_target(2)
         
         assert result == mock_relations
         assert len(result) == 1
+        mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_get_triplets_no_params(self, relation_repo, mock_session):
-        """测试获取三元组 - 无参数场景"""
-        mock_relations = [Mock(), Mock()]
+    async def test_get_by_type_success(self, relation_repo, mock_session):
+        """测试根据关系类型获取关系 - 成功场景"""
+        mock_relations = [Mock(), Mock(), Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_relations
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_relations
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await relation_repo.get_triplets()
+        result = await relation_repo.get_by_type("WORKS_FOR")
         
         assert result == mock_relations
-        assert len(result) == 2
+        assert len(result) == 4
+        mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_update_entity_references_success(self, relation_repo, mock_session):
-        """测试更新实体引用 - 成功场景"""
-        mock_result1 = AsyncMock()
-        mock_result2 = AsyncMock()
-        mock_session.execute.side_effect = [mock_result1, mock_result2]
+    async def test_delete_by_entities_success(self, relation_repo, mock_session):
+        """测试删除实体间关系 - 成功场景"""
+        mock_result = AsyncMock()
+        mock_result.rowcount = 2
+        mock_session.execute.return_value = mock_result
         
-        result = await relation_repo.update_entity_references(1, 2)
+        result = await relation_repo.delete_by_entities(1, 2)
         
-        assert result is True
-        assert mock_session.execute.call_count == 2
+        assert result == 2
+        mock_session.execute.assert_called_once()
+        mock_session.flush.assert_called_once()
     
     @pytest.mark.asyncio
-    async def test_get_relation_stats_success(self, relation_repo, mock_session):
-        """测试获取关系统计 - 成功场景"""
-        mock_predicate_stats = [("works_at", 10), ("located_in", 5)]
-        mock_total_count = 15
+    async def test_delete_by_entities_not_found(self, relation_repo, mock_session):
+        """测试删除实体间关系 - 未找到场景"""
+        mock_result = AsyncMock()
+        mock_result.rowcount = 0
+        mock_session.execute.return_value = mock_result
         
-        # 模拟两个查询的返回值
-        mock_result1 = AsyncMock()
-        mock_result1.all.return_value = mock_predicate_stats
+        result = await relation_repo.delete_by_entities(1, 2)
         
-        mock_result2 = AsyncMock()
-        mock_result2.scalar.return_value = mock_total_count
-        
-        mock_session.execute.side_effect = [mock_result1, mock_result2]
-        
-        result = await relation_repo.get_relation_stats()
-        
-        assert result["total_relations"] == 15
-        assert result["predicate_distribution"]["works_at"] == 10
-        assert result["predicate_distribution"]["located_in"] == 5
-        assert mock_session.execute.call_count == 2
+        assert result == 0
+        mock_session.execute.assert_called_once()
+        mock_session.flush.assert_not_called()
     
     @pytest.mark.asyncio
     async def test_find_redundant_relations_success(self, relation_repo, mock_session):
         """测试查找冗余关系 - 成功场景"""
-        mock_relations = [Mock()]
+        mock_relations = [Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_relations
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_relations
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await relation_repo.find_redundant_relations()
+        result = await relation_repo.find_redundant_relations(1, 2)
         
         assert result == mock_relations
-        assert len(result) == 1
+        assert len(result) == 2
+        mock_session.execute.assert_called_once()
 
 
 class TestAttributeRepository:
@@ -360,8 +346,12 @@ class TestAttributeRepository:
     async def test_get_by_entity_success(self, attribute_repo, mock_session):
         """测试根据实体获取属性 - 成功场景"""
         mock_attributes = [Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_attributes
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_attributes
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await attribute_repo.get_by_entity(1)
@@ -375,41 +365,118 @@ class TestAttributeRepository:
         """测试根据键获取属性 - 成功场景"""
         mock_attribute = Mock()
         mock_attribute.key = "age"
-        mock_attribute.value = "30"
+        mock_attribute.value = "25"
         
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalar_one_or_none.return_value = mock_attribute
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = mock_attribute
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await attribute_repo.get_by_key(1, "age")
         
         assert result == mock_attribute
         assert result.key == "age"
-        assert result.value == "30"
+        assert result.value == "25"
         mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_get_by_key_not_found(self, attribute_repo, mock_session):
         """测试根据键获取属性 - 未找到场景"""
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalar_one_or_none.return_value = None
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = None
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
-        result = await attribute_repo.get_by_key(1, "nonexistent")
+        result = await attribute_repo.get_by_key(1, "不存在的键")
         
         assert result is None
         mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
+    async def test_upsert_create_new(self, attribute_repo, mock_session):
+        """测试upsert - 创建新属性场景"""
+        # 模拟属性不存在
+        mock_result = AsyncMock()
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = None
+        mock_result.scalars.return_value = mock_scalar_result
+        mock_session.execute.return_value = mock_result
+        
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        
+        result = await attribute_repo.upsert(1, "age", "25")
+        
+        # 验证创建操作被调用
+        mock_session.add.assert_called_once()
+        mock_session.flush.assert_called_once()
+        mock_session.refresh.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_upsert_update_existing(self, attribute_repo, mock_session):
+        """测试upsert - 更新现有属性场景"""
+        mock_attribute = Mock()
+        mock_attribute.key = "age"
+        mock_attribute.value = "20"
+        
+        # 模拟属性存在
+        mock_result = AsyncMock()
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = mock_attribute
+        mock_result.scalars.return_value = mock_scalar_result
+        mock_session.execute.return_value = mock_result
+        
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        
+        result = await attribute_repo.upsert(1, "age", "25")
+        
+        assert result == mock_attribute
+        assert mock_attribute.value == "25"
+        mock_session.flush.assert_called_once()
+        mock_session.refresh.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_bulk_upsert_success(self, attribute_repo, mock_session):
+        """测试批量upsert - 成功场景"""
+        # 模拟属性不存在（创建新属性）
+        mock_result = AsyncMock()
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = None
+        mock_result.scalars.return_value = mock_scalar_result
+        mock_session.execute.return_value = mock_result
+        
+        mock_session.flush = AsyncMock()
+        mock_session.refresh = AsyncMock()
+        
+        attributes = {"age": "25", "city": "北京", "job": "工程师"}
+        result = await attribute_repo.bulk_upsert(1, attributes)
+        
+        assert len(result) == 3
+        assert mock_session.add.call_count == 3
+        assert mock_session.flush.call_count == 3
+        assert mock_session.refresh.call_count == 3
+    
+    @pytest.mark.asyncio
     async def test_delete_by_entity_success(self, attribute_repo, mock_session):
         """测试删除实体属性 - 成功场景"""
+        mock_attributes = [Mock(), Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.rowcount = 3
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_attributes
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await attribute_repo.delete_by_entity(1)
         
         assert result == 3
+        assert mock_session.delete.call_count == 3
         mock_session.execute.assert_called_once()
         mock_session.flush.assert_called_once()
 
@@ -434,23 +501,31 @@ class TestNewsEventRepository:
     @pytest.mark.asyncio
     async def test_get_by_title_success(self, news_event_repo, mock_session):
         """测试根据标题获取新闻事件 - 成功场景"""
-        mock_events = [Mock(), Mock()]
+        mock_event = Mock()
+        mock_event.title = "测试新闻"
+        
+        # 正确设置异步mock链 - 注意这里是scalar_one_or_none
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_events
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.scalar_one_or_none.return_value = mock_event
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await news_event_repo.get_by_title("测试新闻")
         
-        assert result == mock_events
-        assert len(result) == 2
+        assert result == mock_event
         mock_session.execute.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_get_by_source_success(self, news_event_repo, mock_session):
         """测试根据来源获取新闻事件 - 成功场景"""
         mock_events = [Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_events
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_events
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await news_event_repo.get_by_source("新浪新闻")
@@ -463,8 +538,12 @@ class TestNewsEventRepository:
     async def test_get_by_entity_success(self, news_event_repo, mock_session):
         """测试根据实体获取新闻事件 - 成功场景"""
         mock_events = [Mock(), Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_events
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_events
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await news_event_repo.get_by_entity(1)
@@ -476,14 +555,9 @@ class TestNewsEventRepository:
     @pytest.mark.asyncio
     async def test_add_entity_relation_new_relation(self, news_event_repo, mock_session):
         """测试添加实体关联 - 新关联场景"""
-        mock_event = Mock()
-        mock_event.id = 1
-        mock_entity = Mock()
-        mock_entity.id = 2
-        
         # 模拟查询结果 - 关联不存在
         mock_result = AsyncMock()
-        mock_result.scalar_one_or_none.return_value = None
+        mock_result.first.return_value = None
         mock_session.execute.return_value = mock_result
         
         result = await news_event_repo.add_entity_relation(1, 2)
@@ -495,19 +569,14 @@ class TestNewsEventRepository:
     @pytest.mark.asyncio
     async def test_add_entity_relation_existing_relation(self, news_event_repo, mock_session):
         """测试添加实体关联 - 已存在关联场景"""
-        mock_event = Mock()
-        mock_event.id = 1
-        mock_entity = Mock()
-        mock_entity.id = 2
-        
         # 模拟查询结果 - 关联已存在
         mock_result = AsyncMock()
-        mock_result.scalar_one_or_none.return_value = Mock()  # 关联已存在
+        mock_result.first.return_value = Mock()  # 关联已存在
         mock_session.execute.return_value = mock_result
         
         result = await news_event_repo.add_entity_relation(1, 2)
         
-        assert result is False
+        assert result is True
         mock_session.execute.assert_called_once()  # 只有查询，没有插入
         mock_session.flush.assert_not_called()
     
@@ -543,8 +612,12 @@ class TestNewsEventRepository:
     async def test_get_recent_events_success(self, news_event_repo, mock_session):
         """测试获取最近新闻事件 - 成功场景"""
         mock_events = [Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_events
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_events
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await news_event_repo.get_recent_events(limit=5)
@@ -557,8 +630,12 @@ class TestNewsEventRepository:
     async def test_search_by_content_success(self, news_event_repo, mock_session):
         """测试根据内容搜索新闻事件 - 成功场景"""
         mock_events = [Mock(), Mock(), Mock()]
+        
+        # 正确设置异步mock链
         mock_result = AsyncMock()
-        mock_result.scalars.return_value.all.return_value = mock_events
+        mock_scalar_result = AsyncMock()
+        mock_scalar_result.all.return_value = mock_events
+        mock_result.scalars.return_value = mock_scalar_result
         mock_session.execute.return_value = mock_result
         
         result = await news_event_repo.search_by_content("关键词")

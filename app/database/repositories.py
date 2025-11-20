@@ -340,6 +340,7 @@ class NewsEventRepository(BaseRepository):
     async def get_by_title(self, title: str):
         """根据标题获取新闻事件"""
         try:
+            from .models import NewsEvent
             stmt = select(NewsEvent).where(NewsEvent.title == title)
             result = await self.session.execute(stmt)
             return result.scalar_one_or_none()
@@ -350,6 +351,7 @@ class NewsEventRepository(BaseRepository):
     async def get_by_source(self, source: str, skip: int = 0, limit: int = 100):
         """根据来源获取新闻事件"""
         try:
+            from .models import NewsEvent
             stmt = select(NewsEvent).where(NewsEvent.source == source).offset(skip).limit(limit)
             result = await self.session.execute(stmt)
             return result.scalars().all()
@@ -360,7 +362,7 @@ class NewsEventRepository(BaseRepository):
     async def get_by_entity(self, entity_id: int, skip: int = 0, limit: int = 100):
         """根据实体获取相关新闻事件 - 多表关联查询"""
         try:
-            from .models import Entity
+            from .models import Entity, NewsEvent
             stmt = select(NewsEvent).join(NewsEvent.entities).where(Entity.id == entity_id).offset(skip).limit(limit)
             result = await self.session.execute(stmt)
             return result.scalars().all()
@@ -371,6 +373,7 @@ class NewsEventRepository(BaseRepository):
     async def add_entity_relation(self, news_event_id: int, entity_id: int) -> bool:
         """添加新闻事件与实体的关联 - 知识图谱构建"""
         try:
+            from .models import news_event_entity
             stmt = select(news_event_entity).where(
                 and_(news_event_entity.c.news_event_id == news_event_id,
                      news_event_entity.c.entity_id == entity_id)
@@ -397,6 +400,7 @@ class NewsEventRepository(BaseRepository):
     async def remove_entity_relation(self, news_event_id: int, entity_id: int) -> bool:
         """移除新闻事件与实体的关联"""
         try:
+            from .models import news_event_entity
             delete_stmt = news_event_entity.delete().where(
                 and_(news_event_entity.c.news_event_id == news_event_id,
                      news_event_entity.c.entity_id == entity_id)
@@ -415,6 +419,7 @@ class NewsEventRepository(BaseRepository):
     async def get_recent_events(self, days: int = 7, limit: int = 100):
         """获取最近的新闻事件 - 时间序列分析"""
         try:
+            from .models import NewsEvent
             from datetime import datetime, timedelta
             
             cutoff_date = datetime.now() - timedelta(days=days)
@@ -430,6 +435,7 @@ class NewsEventRepository(BaseRepository):
     async def search_by_content(self, keyword: str, limit: int = 100):
         """根据内容关键词搜索新闻事件 - 全文搜索"""
         try:
+            from .models import NewsEvent
             # 简单的LIKE搜索，实际项目中可以考虑使用全文搜索引擎
             stmt = select(NewsEvent).where(
                 NewsEvent.content.contains(keyword)
