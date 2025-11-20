@@ -1,120 +1,413 @@
-# Python代码风格规范
+# Python代码风格与开发规范
 
-## 1. PEP 8 基础规范
-- **缩进**: 使用4个空格进行缩进，禁止使用制表符
-- **行长度**: 每行代码最多120个字符
-- **空行**: 模块级函数和类定义之间空两行，类内部方法定义之间空一行
-- **导入**: 按标准库→第三方库→本地库的顺序导入，每组之间空一行
+## 代码风格规范
 
-## 2. 类型注解
-- **必须为所有函数和方法添加类型注解**
-- **使用`typing`模块的类型**: 如`List`, `Dict`, `Optional`, `Any`, `Union`等
-- **示例**:
+### 命名约定
+
+- **变量和函数**：使用snake_case命名
   ```python
-  def get_user(id: int) -> Optional[User]:
-      pass
-  
-  async def create_post(data: PostCreate) -> Post:
+  user_name = 'john'
+  def get_user_info():
       pass
   ```
 
-## 3. 异步编程规范
-- **正确使用`async/await`**: 异步函数必须用`async def`定义，调用时必须使用`await`
-- **避免阻塞操作**: 在异步代码中禁止使用同步IO操作
-- **异步选择**: 根据项目需求和技术栈选择同步或异步编程方式
-
-## 4. 命名规范
-- **类名**: 使用大驼峰式命名(如`UserRepository`)
-- **函数/方法名**: 使用小写字母加下划线分隔(如`get_user_by_id`)
-- **变量名**: 使用小写字母加下划线分隔(如`user_name`)
-- **常量**: 使用全大写字母加下划线分隔(如`DATABASE_URL`)
-- **模块名**: 使用小写字母加下划线分隔(如`user_repository`)
-
-## 5. 注释和文档字符串
-- **模块注释**: 每个模块开头添加模块说明
-- **类注释**: 每个类添加文档字符串，说明类的作用
-- **函数/方法注释**: 每个函数添加文档字符串，说明参数、返回值和功能
-- **使用Google风格文档字符串**:
+- **类名**：使用PascalCase命名
   ```python
-  def get_user(id: int) -> Optional[User]:
-      """
-      根据ID获取用户
+  class UserService:
+      pass
+  
+  class ApiResponse:
+      pass
+  ```
+
+- **常量**：使用SCREAMING_SNAKE_CASE
+  ```python
+  API_BASE_URL = 'https://api.example.com'
+  MAX_RETRY_COUNT = 3
+  ```
+
+- **私有属性**：使用单下划线前缀
+  ```python
+  class User:
+      def __init__(self):
+          self._private_attr = None
+          self.__very_private = None  # 名称改写
+  ```
+
+### 代码格式
+
+- **行长度**：最大88字符（Black默认）
+- **缩进**：使用4个空格，不使用Tab
+- **空行规则**：
+  - 顶级函数和类定义前后2个空行
+  - 类内方法定义前后1个空行
+  - 逻辑相关的代码块之间1个空行
+
+- **导入规范**：
+  ```python
+  # 标准库
+  import os
+  import sys
+  from pathlib import Path
+  
+  # 第三方库
+  import requests
+  from flask import Flask
+  
+  # 本地模块 （假设项目结构为 app/）
+  from app.models import User
+  from app.utils import logger
+  ```
+
+### 字符串和注释
+
+- **字符串引号**：优先使用单引号，包含单引号时使用双引号
+  ```python
+  message = 'Hello world'
+  quote = "He said 'Hello'"
+  ```
+
+- **文档字符串**：使用三重双引号
+  ```python
+  def calculate_total(items: list[dict]) -> float:
+      """计算商品总价。
       
       Args:
-          id: 用户ID
-      
+          items: 商品列表，每个商品包含price字段
+          
       Returns:
-          Optional[User]: 用户对象或None
+          商品总价
+          
+      Raises:
+          ValueError: 当商品价格为负数时
       """
       pass
   ```
 
-## 6. 错误处理
-- **使用特定异常**: 避免使用泛泛的`Exception`
-- **自定义异常**: 为特定业务逻辑创建自定义异常
-- **异常处理**: 仅捕获需要处理的异常，避免空的`except`块
-- **示例**:
-  ```python
-  from sqlalchemy.exc import SQLAlchemyError
-  
-  async def create_user(user: UserCreate) -> User:
-      try:
-          db_user = User(**user.dict())
-          db.add(db_user)
-          await db.commit()
-          await db.refresh(db_user)
-          return db_user
-      except SQLAlchemyError as e:
-          await db.rollback()
-          raise DatabaseError(f"创建用户失败: {e}")
-  ```
+## 类型注解规范
 
-## 7. 日志记录
-- **使用Python标准库`logging`**
-- **日志级别**: DEBUG(开发), INFO(正常), WARNING(警告), ERROR(错误), CRITICAL(严重错误)
-- **日志格式**: 包含时间、级别、模块、函数名和消息
-- **示例**:
+### 基础类型注解
+
+```python
+from typing import List, Dict, Optional, Union, Callable
+from collections.abc import Sequence, Mapping
+
+# 基础类型
+def process_data(data: str, count: int) -> bool:
+    pass
+
+# 容器类型（Python 3.9+）
+def filter_users(users: list[dict]) -> list[dict]:
+    pass
+
+# 可选类型
+def find_user(user_id: str) -> Optional[dict]:
+    pass
+
+# 联合类型（Python 3.10+）
+def parse_value(value: str | int) -> float:
+    pass
+```
+
+### 复杂类型注解
+
+```python
+from typing import TypeVar, Generic, Protocol
+from dataclasses import dataclass
+
+# 泛型
+T = TypeVar('T')
+
+class Repository(Generic[T]):
+    def save(self, entity: T) -> T:
+        pass
+
+# 协议
+class Drawable(Protocol):
+    def draw(self) -> None:
+        ...
+
+# 数据类
+@dataclass
+class User:
+    id: str
+    name: str
+    email: str
+    age: Optional[int] = None
+```
+
+## 开发规范
+
+### 错误处理
+
+- **异常层次**：使用内置异常或自定义异常
   ```python
-  import logging
+  class UserNotFoundError(ValueError):
+      """用户未找到异常。"""
+      pass
   
-  logger = logging.getLogger(__name__)
-  
-  async def get_user(id: int) -> Optional[User]:
-      logger.debug(f"获取用户ID: {id}")
-      user = await db.query(User).filter(User.id == id).first()
+  def get_user(user_id: str) -> User:
+      if not user_id:
+          raise ValueError("User ID cannot be empty")
+      
+      user = database.find_user(user_id)
       if not user:
-          logger.warning(f"未找到用户ID: {id}")
+          raise UserNotFoundError(f"User {user_id} not found")
+      
       return user
   ```
 
-## 8. 模块结构
-- **单一职责原则**: 每个模块只负责一个功能
-- **避免循环导入**: 使用延迟导入或重构代码
-- **__all__变量**: 明确导出的模块成员
+- **资源管理**：使用上下文管理器
+  ```python
+  # 文件操作
+  with open('data.txt', 'r') as file:
+      content = file.read()
+  
+  # 数据库连接
+  with get_db_connection() as conn:
+      result = conn.execute(query)
+  ```
 
-## 9. 测试规范
-- **测试文件命名**: `test_*.py`
-- **测试框架**: 使用`pytest`
-- **测试类型**: 单元测试、集成测试、端到端测试
-- **异步测试**: 使用`pytest-asyncio`插件
+### 函数设计
 
-## 10. 配置管理
-- **环境变量**: 所有配置必须通过环境变量管理
-- **禁止硬编码**: 禁止在代码中直接写入配置值
-- **使用`python-dotenv`**: 本地开发时加载`.env`文件
+- **纯函数优先**：避免副作用
+- **参数设计**：使用关键字参数提高可读性
+  ```python
+  def create_user(
+      name: str,
+      email: str,
+      *,  # 强制关键字参数
+      age: Optional[int] = None,
+      is_active: bool = True
+  ) -> User:
+      pass
+  
+  # 调用
+  user = create_user(
+      'John Doe',
+      'john@example.com',
+      age=25,
+      is_active=True
+  )
+  ```
 
-## 11. 通用建议
-- **Python版本**: 推荐使用Python 3.10+以利用最新特性
-- **框架选择**: 根据项目需求选择合适的框架
-- **遵循架构**: 遵循项目架构设计和技术栈选择
-- **保持一致性**: 与团队约定的代码风格保持一致
+### 类设计
 
-## 12. 代码审查要点
-- PEP 8合规性
-- 类型注解完整性
-- 异步操作正确性
-- 错误处理的完整性
-- 代码可读性和可维护性
+- **数据类优先**：简单数据结构使用dataclass
+- **属性访问**：使用property装饰器
+  ```python
+  from dataclasses import dataclass
+  from datetime import datetime
+  
+  @dataclass
+  class User:
+      name: str
+      email: str
+      created_at: datetime = None
+      
+      def __post_init__(self):
+          if self.created_at is None:
+              self.created_at = datetime.now()
+      
+      @property
+      def display_name(self) -> str:
+          return self.name.title()
+  ```
 
-## 13. package说明
-- 在package下生成该package的说明文档 package.md，要求语言精炼，需要使用时进行查阅
+## 工具配置
+
+### Black配置（pyproject.toml）
+
+```toml
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+(
+  /(
+      \.eggs
+    | \.git
+    | \.venv
+    | build
+    | dist
+  )/
+)
+'''
+```
+
+### isort配置
+
+```toml
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["myproject"]
+```
+
+### pylint配置
+
+```toml
+[tool.pylint.messages_control]
+disable = [
+    "missing-docstring",
+    "too-few-public-methods",
+]
+
+[tool.pylint.format]
+max-line-length = 88
+```
+
+### mypy配置
+
+```toml
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+```
+
+## 测试规范
+
+### 测试文件组织
+
+```
+project/
+├── src/
+│   └── myproject/
+│       ├── __init__.py
+│       ├── models.py
+│       └── services.py
+└── tests/
+    ├── __init__.py
+    ├── test_models.py
+    └── test_services.py
+```
+
+### 测试编写
+
+```python
+import pytest
+from unittest.mock import Mock, patch
+
+from myproject.services import UserService
+from myproject.models import User
+
+class TestUserService:
+    """用户服务测试类。"""
+    
+    def setup_method(self):
+        """每个测试方法前的设置。"""
+        self.user_service = UserService()
+    
+    def test_create_user_with_valid_data(self):
+        """测试使用有效数据创建用户。"""
+        # Arrange
+        user_data = {
+            'name': 'John Doe',
+            'email': 'john@example.com'
+        }
+        
+        # Act
+        result = self.user_service.create_user(user_data)
+        
+        # Assert
+        assert isinstance(result, User)
+        assert result.name == user_data['name']
+        assert result.email == user_data['email']
+    
+    def test_create_user_with_invalid_email_raises_error(self):
+        """测试使用无效邮箱创建用户抛出异常。"""
+        user_data = {
+            'name': 'John Doe',
+            'email': 'invalid-email'
+        }
+        
+        with pytest.raises(ValueError, match="Invalid email format"):
+            self.user_service.create_user(user_data)
+    
+    @patch('myproject.services.database')
+    def test_get_user_calls_database(self, mock_database):
+        """测试获取用户调用数据库。"""
+        # Arrange
+        user_id = 'user123'
+        mock_database.find_user.return_value = {'id': user_id}
+        
+        # Act
+        self.user_service.get_user(user_id)
+        
+        # Assert
+        mock_database.find_user.assert_called_once_with(user_id)
+```
+
+## 性能优化
+
+### 数据结构选择
+
+```python
+# 大量查找操作使用set
+valid_ids = {'id1', 'id2', 'id3'}
+if user_id in valid_ids:  # O(1)
+    pass
+
+# 有序数据使用bisect
+import bisect
+sorted_list = [1, 3, 5, 7, 9]
+index = bisect.bisect_left(sorted_list, 5)
+
+# 计数操作使用Counter
+from collections import Counter
+counts = Counter(items)
+```
+
+### 内存优化
+
+```python
+# 使用生成器处理大数据
+def process_large_file(filename: str):
+    with open(filename, 'r') as file:
+        for line in file:  # 逐行处理，不加载整个文件
+            yield process_line(line)
+
+# 使用__slots__减少内存占用
+class Point:
+    __slots__ = ['x', 'y']
+    
+    def __init__(self, x: float, y: float):
+        self.x = x
+        self.y = y
+```
+
+## 代码审查清单
+
+### 代码质量
+- [ ] 遵循PEP 8代码规范
+- [ ] 所有函数都有类型注解
+- [ ] 文档字符串完整
+- [ ] 没有未使用的导入
+- [ ] 变量命名清晰
+
+### 功能正确性
+- [ ] 错误处理完善
+- [ ] 边界条件考虑
+- [ ] 测试覆盖率达标
+- [ ] 没有硬编码值
+
+### 性能考虑
+- [ ] 算法复杂度合理
+- [ ] 内存使用优化
+- [ ] 避免不必要的循环
+- [ ] 合理使用缓存
+
+### 安全性
+- [ ] 输入验证
+- [ ] SQL注入防护
+- [ ] 敏感信息保护
+- [ ] 依赖包安全检查
+
+版本：1.0.0 | 最后修改：2025-09-09
