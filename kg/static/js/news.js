@@ -30,9 +30,10 @@ function loadNews() {
     // Show loading state
     newsTableBody.innerHTML = '<tr><td colspan="6" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div> 加载新闻列表...</td></tr>';
     
-    apiRequest('/api/v1/news/', 'GET')
+    apiRequest('/api/v1/news', 'GET')
         .then(data => {
-            newsData = data.news || [];
+            // The API returns a direct list of news, not an object with news property
+            newsData = Array.isArray(data) ? data : (data.news || []);
             renderNews(newsData);
         })
         .catch(error => {
@@ -74,9 +75,11 @@ function renderNews(news) {
 
 // View news details
 function viewNews(newsId) {
-    const news = newsData.find(item => item.id === newsId);
-    
-    if (news) {
+    apiRequest(`/api/v1/news/${newsId}`, 'GET').then(data => {
+        // Handle both direct news object and wrapped response
+        const news = data.id ? data : (data.data || data);
+        
+        if (news && news.id) {
         // Create modal or detail view
         const modal = document.createElement('div');
         modal.className = 'modal fade';
@@ -120,7 +123,8 @@ function viewNews(newsId) {
         modal.addEventListener('hidden.bs.modal', () => {
             modal.remove();
         });
-    }
+        }
+    });
 }
 
 // Delete news

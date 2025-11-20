@@ -63,7 +63,7 @@ async function extractEntityRelation() {
             text: formData.get('text')
         };
         
-        const result = await apiRequest('/auto-kg/extract-entity-relation/', 'POST', data);
+        const result = await apiRequest('/api/v1/autokg/extract-entities', 'POST', data);
         
         // Render the extraction result
         renderExtractionResult(result, resultContainer);
@@ -92,7 +92,7 @@ async function processText() {
             text: formData.get('text')
         };
         
-        const result = await apiRequest('/auto-kg/process-text/', 'POST', data);
+        const result = await apiRequest('/api/v1/autokg/process-text', 'POST', data);
         
         // Render the processing result
         renderProcessingResult(result, resultContainer);
@@ -121,7 +121,7 @@ async function processUrlNews() {
             url: formData.get('url')
         };
         
-        const result = await apiRequest('/auto-kg/process-url-news/', 'POST', data);
+        const result = await apiRequest('/api/v1/autokg/process-news', 'POST', data);
         
         // Render the URL processing result
         renderProcessingResult(result, resultContainer);
@@ -157,7 +157,7 @@ async function processFileNews() {
             file: file
         };
         
-        const result = await apiRequest('/auto-kg/process-file-news/', 'POST', data);
+        const result = await apiRequest('/api/v1/autokg/process-news', 'POST', data);
         
         // Render the file processing result
         renderProcessingResult(result, resultContainer);

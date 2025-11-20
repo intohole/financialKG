@@ -255,7 +255,17 @@ async function searchGraph() {
     }
     
     try {
-        const result = await apiRequest('/api/v1/visualize/search-graph/', 'POST', { query, type });
+        // 由于后端暂未实现搜索API，使用前端过滤实现搜索功能
+        // 在现有图数据中进行前端搜索
+        const filteredNodes = graphData.nodes.filter(node => 
+            (type === 'all' || node.group === type) && 
+            node.label.toLowerCase().includes(query.toLowerCase())
+        );
+        const filteredEdges = graphData.edges.filter(edge => 
+            filteredNodes.some(node => node.id === edge.from_id || node.id === edge.to_id) ||
+            edge.label.toLowerCase().includes(query.toLowerCase())
+        );
+        const result = { success: true, nodes: filteredNodes, edges: filteredEdges };
         
         if (result && result.success) {
             // Highlight search results
@@ -290,7 +300,28 @@ async function filterGraph() {
     const depth = parseInt(depthFilter.value) || 1;
     
     try {
-        const result = await apiRequest('/api/v1/visualize/filter-graph/', 'POST', { entityType, relationType, depth });
+        // 由于后端暂未实现过滤API，使用前端过滤实现过滤功能
+        // 在现有图数据中进行前端过滤
+        let filteredNodes = [...graphData.nodes];
+        let filteredEdges = [...graphData.edges];
+        
+        // 根据实体类型过滤
+        if (entityType) {
+            filteredNodes = filteredNodes.filter(node => node.group === entityType);
+        }
+        
+        // 根据关系类型过滤
+        if (relationType) {
+            filteredEdges = filteredEdges.filter(edge => edge.label === relationType);
+        }
+        
+        // 过滤出与过滤后节点相关的边
+        const nodeIds = new Set(filteredNodes.map(node => node.id));
+        filteredEdges = filteredEdges.filter(edge => 
+            nodeIds.has(edge.from_id) && nodeIds.has(edge.to_id)
+        );
+        
+        const result = { success: true, nodes: filteredNodes, edges: filteredEdges };
         
         if (result && result.success) {
             // Update graph with filtered data

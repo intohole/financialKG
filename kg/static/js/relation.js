@@ -272,7 +272,7 @@ async function viewRelation(relationId) {
 // Edit relation
 async function editRelation(relationId) {
     try {
-        const relation = await apiRequest(`/relations/${relationId}/`, 'GET');
+        const relation = await apiRequest(`/api/v1/relations/${relationId}/`, 'GET');
         
         // Create edit form
         const modalHtml = `

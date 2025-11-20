@@ -66,7 +66,8 @@ async function entityDeduplication() {
             limit: parseInt(formData.get('limit')) || 10
         };
         
-        const result = await apiRequest('/api/deduplicate/entities/', 'POST', data);
+        // 调用实体去重API
+        const result = await apiRequest('/api/v1/deduplication/run', 'POST', data);
         
         // Render the entity deduplication result
         renderEntityDedupResult(result, resultContainer);
@@ -98,7 +99,8 @@ async function relationDeduplication() {
             limit: parseInt(formData.get('limit')) || 10
         };
         
-        const result = await apiRequest('/api/deduplicate/relations/', 'POST', data);
+        // 调用关系去重API
+        const result = await apiRequest('/api/v1/deduplication/run', 'POST', {type: 'relations'});
         
         // Render the relation deduplication result
         renderRelationDedupResult(result, resultContainer);
@@ -134,7 +136,8 @@ async function mergeEntities() {
             return;
         }
         
-        const result = await apiRequest('/api/deduplicate/merge-entities/', 'POST', data);
+        // 调用实体合并API（通过去重路由处理）
+        const result = await apiRequest('/api/v1/deduplication/run', 'POST', {type: 'entities', action: 'merge', merge_groups: data});
         
         // Render the merge result
         renderMergeResult(result, resultContainer, 'entities');
@@ -170,7 +173,8 @@ async function mergeRelations() {
             return;
         }
         
-        const result = await apiRequest('/api/deduplicate/merge-relations/', 'POST', data);
+        // 调用关系合并API（通过去重路由处理）
+        const result = await apiRequest('/api/v1/deduplication/run', 'POST', {type: 'relations', action: 'merge', merge_groups: data});
         
         // Render the merge result
         renderMergeResult(result, resultContainer, 'relations');
