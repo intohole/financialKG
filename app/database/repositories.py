@@ -196,6 +196,7 @@ class RelationRepository(BaseRepository):
     async def update_entity_references(self, old_entity_id: int, new_entity_id: int) -> bool:
         """更新实体引用 - 实体合并时的关键操作"""
         try:
+            from .models import Relation
             # 更新作为主体的关系
             stmt1 = update(Relation).where(Relation.subject_id == old_entity_id).values(subject_id=new_entity_id)
             await self.session.execute(stmt1)
@@ -210,9 +211,10 @@ class RelationRepository(BaseRepository):
             logger.error(f"更新实体引用失败: {e}")
             raise DatabaseError(f"更新实体引用失败: {e}")
     
-    async def get_relation_stats(self) -> dict:
+    async def get_relation_stats(self):
         """获取关系统计信息"""
         try:
+            from .models import Relation
             from sqlalchemy import func
             
             # 统计不同谓词的数量
@@ -234,11 +236,12 @@ class RelationRepository(BaseRepository):
             raise DatabaseError(f"获取关系统计失败: {e}")
     
     async def find_redundant_relations(self):
-        """查找冗余关系 - 知识图谱优化"""
+        """查找冗余关系 - 用于数据清理"""
         try:
-            # 查找重复的三元组（主体、谓词、客体都相同）
+            from .models import Relation
             from sqlalchemy import func
             
+            # 查找重复的三元组（主体、谓词、客体都相同）
             stmt = select(Relation).group_by(
                 Relation.subject_id, Relation.predicate, Relation.object_id
             ).having(func.count(Relation.id) > 1)

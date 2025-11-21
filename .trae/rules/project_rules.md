@@ -22,42 +22,46 @@
 
 ### 核心开发规范
 - **描述**：定义项目的技术栈、架构模式  
-  **加载规则文件**：`rules/project_overview.md`  
+  **加载规则文件**：`trae_rules/project_overview.md`  
   **生效范围**：全局生效
 - **描述**：定义项目结构、模块划分与目录规范  
-  **加载规则文件**：`rules/project_structure.md`  
+  **加载规则文件**：`trae_rules/project_structure.md`  
   **生效范围**：全局生效
 - **描述**：统一 Python 代码风格、命名与注释规范  
-  **加载规则文件**：`rules/coding_style.md`  
+  **加载规则文件**：`trae_rules/coding_style.md`  
   **生效范围**：.py 生效
 - **描述**：规范数据库模型、迁移与异步查询逻辑  
-  **加载规则文件**：`rules/database.md`  
+  **加载规则文件**：`trae_rules/database.md`  
   **生效范围**：数据库设计
 - **描述**：管理大模型调用、提示词与缓存策略  
-  **加载规则文件**：`rules/llm.md`  
+  **加载规则文件**：`trae_rules/llm.md`  
   **生效范围**：大模型调用/prompt
 - **描述**：统一 RESTful 接口设计、请求响应与错误处理  
-  **加载规则文件**：`rules/api_design.md`  
+  **加载规则文件**：`trae_rules/api_design.md`  
   **生效范围**：RESTful 接口设计
 - **描述**：指导服务分层、依赖注入与接口抽象  
-  **加载规则文件**：`rules/design.md`  
+  **加载规则文件**：`trae_rules/design.md`  
   **生效范围**：服务分层/依赖注入/接口抽象
 - **描述**：规范代码 Review、重复代码检测与重构流程  
-  **加载规则文件**：`rules/review_code.md`  
+  **加载规则文件**：`trae_rules/review_code.md`  
   **生效范围**：代码 Review
 - **描述**：定义 FastAPI 路由、中间件、异常与生命周期管理  
-  **加载规则文件**：`rules/fastapi.md`  
+  **加载规则文件**：`trae_rules/fastapi.md`  
   **生效范围**：FastAPI 路由/中间件/异常/生命周期管理
 - **描述**：统一前端 HTML、CSS、JavaScript 与组件规范  
-  **加载规则文件**：`rules/frontend.md`  
+  **加载规则文件**：`trae_rules/frontend.md`  
   **生效范围**：.js .html .css
 
 - **描述**：统一测试代码规范、测试框架与测试用例设计  
-  **加载规则文件**：`rules/tests.md`  
+  **加载规则文件**：`trae_rules/tests.md`  
   **生效范围**：.py 生效
 
+- **描述**：统一经验沉淀规范、经验文件与经验使用规范  
+  **加载规则文件**：`trae_rules/experience.md`  
+  **生效范围**：全局生效
 
-**备注** trae_rules 目录在代码根目录上，按需进行加载。
+
+trae_rules 目录在代码根目录上，按需进行加载。
 
 ## 编码规范
 - 优先考虑设计模式开发

@@ -1,0 +1,160 @@
+# 金融知识图谱项目配置文件
+# Financial Knowledge Graph Project Configuration
+
+# 大模型配置
+llm:
+  model: "glm-4-flash"
+  api_key: "9f0867c6ca528cfb0faa3ea170411448.YpruqxYPsTnpyrjM"  # 通过环境变量 OPENAI_API_KEY 设置
+  base_url: "https://open.bigmodel.cn/api/paas/v4/"  # 可选，通过环境变量 OPENAI_BASE_URL 设置
+  timeout: 30
+  max_retries: 3
+  temperature: 0.1
+  max_tokens: 2048
+
+# 嵌入模型配置
+embedding:
+  model: "embedding-3"  # 使用智谱AI的embedding-3模型
+  api_key: "9f0867c6ca528cfb0faa3ea170411448.YpruqxYPsTnpyrjM"  # 留空则使用llm的api_key
+  base_url: "https://open.bigmodel.cn/api/paas/v4/"  # 智谱AI的API地址
+  timeout: 30
+  max_retries: 3
+  dimension: 2  # 嵌入向量维度，与API调用一致
+  normalize: true  # 是否归一化向量
+
+# 数据库配置
+database:
+  url: "sqlite+aiosqlite:///./financial_kg.db"
+  echo: false
+  pool_pre_ping: true
+  pool_recycle: 3600
+
+# API服务配置
+api:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+  reload: false
+  workers: 1
+  log_level: "info"
+
+# 调度器配置
+scheduler:
+  timezone: "Asia/Shanghai"
+  max_workers: 10
+  coalesce: true
+  misfire_grace_time: 300
+  log_level: "INFO"
+  log_file: null
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  job_store:
+    type: "memory"
+    url: null
+  executor:
+    type: "asyncio"
+    max_workers: 10
+  tasks: []
+
+# 日志配置
+logging:
+  version: 1
+  disable_existing_loggers: false
+  formatters:
+    default:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    detailed:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(module)s - %(funcName)s - %(message)s"
+  handlers:
+    console:
+      class: "logging.StreamHandler"
+      level: "INFO"
+      formatter: "default"
+      stream: "ext://sys.stdout"
+    file:
+      class: "logging.handlers.RotatingFileHandler"
+      level: "DEBUG"
+      formatter: "detailed"
+      filename: "logs/financial_kg.log"
+      maxBytes: 10485760  # 10MB
+      backupCount: 5
+  loggers:
+    kg:
+      level: "DEBUG"
+      handlers: ["console", "file"]
+      propagate: false
+  root:
+    level: "INFO"
+    handlers: ["console"]
+
+# 新闻处理配置
+news_processing:
+  batch_size: 10
+  max_retries: 3
+  retry_delay: 1
+  timeout: 30
+  sources:
+    - name: "示例财经网站"
+      url: "https://example.com/finance"
+      enabled: false
+  update_interval: 3600  # 秒
+
+# 知识图谱配置
+knowledge_graph:
+  entity_types:
+    - "公司"
+    - "人物"
+    - "行业"
+    - "产品"
+    - "地点"
+    - "事件"
+  relation_types:
+    - "属于"
+    - "位于"
+    - "生产"
+    - "投资"
+    - "合作"
+    - "竞争"
+  similarity_threshold: 0.7
+  max_entities_per_news: 50
+
+# 向量搜索配置
+vector_search:
+  # 向量数据库类型，支持 'chroma', 'pinecone', 'weaviate' 等
+  type: "chroma"
+  # 本地存储路径（适用于chroma等本地向量数据库）
+  path: "./data/chroma"
+  # 远程主机地址（适用于远程向量数据库，如pinecone）
+  # host: "example.com"
+  # 端口号（适用于远程向量数据库）
+  # port: 8000
+  # API密钥（适用于需要认证的向量数据库）
+  # api_key: "your-api-key"
+  # 超时时间（秒）
+  timeout: 30
+  # 默认集合名称
+  collection_name: "default"
+  # 默认向量维度（与embedding模型匹配）
+  dimension: 1536
+  # 距离度量方式，可选 'cosine', 'euclidean', 'l2' 等
+  metric: "cosine"
+  # 关联的嵌入模型名称（可选）
+  # embedding_model: "text-embedding-ada-002"
+
+# 缓存配置
+cache:
+  type: "memory"  # memory, redis
+  ttl: 3600  # 秒
+  max_size: 1000
+  redis:
+    host: "localhost"
+    port: 6379
+    db: 0
+    password: null
+
+# 安全配置
+security:
+  secret_key: null  # 通过环境变量 SECRET_KEY 设置
+  algorithm: "HS256"
+  access_token_expire_minutes: 30
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
