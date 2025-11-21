@@ -39,15 +39,39 @@ class VectorIndexManager:
         """同步添加到向量索引"""
         try:
             if self.embedding_service:
+                # 确保索引存在
+                try:
+                    self.vector_store.get_index_info(content_type)
+                except Exception:
+                    # 索引不存在，创建索引（使用嵌入服务的实际维度）
+                    logger.info(f"创建向量索引: {content_type}")
+                    # 获取一个测试向量来确定维度
+                    test_embedding = self.embedding_service.embed_text("测试")
+                    actual_dimension = len(test_embedding)
+                    logger.info(f"检测到嵌入维度: {actual_dimension}")
+                    self.vector_store.create_index(content_type, dimension=actual_dimension)
+                
                 embedding = self.embedding_service.embed_text(content, use_cache=True)
-                vector_id = self.vector_store.add_vector(
-                    vector=embedding,
-                    content_id=content_id,
-                    content_type=content_type,
-                    metadata=metadata or {}
+                vector_id = f"{content_type}_{content_id}_vec"
+                
+                # 确保元数据包含内容类型用于过滤
+                final_metadata = metadata or {}
+                final_metadata['content_type'] = content_type
+                
+                print(f"DEBUG: 添加向量到索引: index_name='{content_type}', vector_id='{vector_id}', metadata={final_metadata}")
+                
+                success = self.vector_store.add_vectors(
+                    index_name=content_type,
+                    vectors=[embedding],
+                    ids=[vector_id],
+                    metadatas=[final_metadata],
+                    texts=[content]
                 )
-                logger.debug(f"成功添加向量到索引: {content_id} -> {vector_id}")
-                return vector_id
+                if success:
+                    logger.debug(f"成功添加向量到索引: {content_id} -> {vector_id}")
+                    return vector_id
+                else:
+                    raise StoreError("向量添加失败")
             else:
                 return f"{content_type}_{content_id}_vec"
         except Exception as e:
@@ -61,19 +85,23 @@ class VectorIndexManager:
                 raise ValueError("向量存储或嵌入服务未初始化")
             
             # 生成查询向量
+            print(f"DEBUG: 生成查询向量: query='{query}', content_type='{content_type}'")
             query_embedding = await asyncio.get_event_loop().run_in_executor(
                 self.executor,
                 self.embedding_service.embed_text,
                 query,
                 True  # use_cache
             )
+            print(f"DEBUG: 查询向量生成完成: 维度={len(query_embedding) if query_embedding else 0}")
             
             # 搜索相似向量
+            print(f"DEBUG: 开始向量搜索: content_type='{content_type}', top_k={limit}")
             results = await self.vector_store.search_vectors_async(
                 query_embedding=query_embedding,
                 content_type=content_type,
                 top_k=limit
             )
+            print(f"DEBUG: 向量搜索完成: 返回结果数量={len(results)}")
             
             return results
             

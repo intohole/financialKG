@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Table, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Table, UniqueConstraint, Index, JSON
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 
@@ -14,6 +14,7 @@ class Entity(Base):
     # 指向官方/合并后的实体，NULL 表示自己就是官方实体
     canonical_id = Column(Integer, ForeignKey('entities.id'), nullable=True, comment='合并后的官方实体ID')
     vector_id = Column(String(255), nullable=True, comment='向量存储中的ID')
+    meta_data = Column(JSON, nullable=True, comment='实体的元数据信息')
     created_at  = Column(DateTime, default=datetime.utcnow, comment='创建时间')
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
 
@@ -33,6 +34,7 @@ class Relation(Base):
     object_id   = Column(Integer, ForeignKey('entities.id'), nullable=False, comment='客体实体ID')
     description = Column(Text, comment='关系描述')
     vector_id = Column(String(255), nullable=True, comment='向量存储中的ID')
+    meta_data = Column(JSON, nullable=True, comment='关系的元数据信息')
     created_at  = Column(DateTime, default=datetime.utcnow, comment='创建时间')
 
     # 联合唯一：同一主体+谓词+客体只能出现一次

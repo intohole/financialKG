@@ -22,10 +22,10 @@ class StoreConfig:
 @dataclass
 class Entity:
     """实体数据模型"""
-    id: Optional[int]
     name: str
     type: str
     description: Optional[str] = None
+    id: Optional[int] = None
     canonical_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

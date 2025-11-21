@@ -27,7 +27,7 @@ class DataConverter:
                 created_at=db_entity.created_at,
                 updated_at=db_entity.updated_at,
                 vector_id=vector_id,
-                metadata=getattr(db_entity, 'metadata', None)
+                metadata=getattr(db_entity, 'meta_data', None)
             )
         except AttributeError as e:
             raise ValueError(f"数据库实体缺少必要属性: {e}")
@@ -47,7 +47,7 @@ class DataConverter:
         
         # 如果metadata存在且不为None，添加到结果中
         if hasattr(entity, 'metadata') and entity.metadata is not None:
-            result['metadata'] = entity.metadata
+            result['meta_data'] = entity.metadata
         
         # 如果vector_id存在且不为None，添加到结果中
         if hasattr(entity, 'vector_id') and entity.vector_id is not None:
@@ -70,7 +70,7 @@ class DataConverter:
                 description=db_relation.description,
                 created_at=db_relation.created_at,
                 vector_id=vector_id,
-                metadata=getattr(db_relation, 'metadata', None)
+                metadata=getattr(db_relation, 'meta_data', None)
             )
         except AttributeError as e:
             raise ValueError(f"数据库关系缺少必要属性: {e}")
@@ -90,6 +90,6 @@ class DataConverter:
         
         # 如果metadata存在且不为None，添加到结果中
         if hasattr(relation, 'metadata') and relation.metadata is not None:
-            result['metadata'] = relation.metadata
+            result['meta_data'] = relation.metadata
             
         return result

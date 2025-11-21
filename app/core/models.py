@@ -66,6 +66,7 @@ class Entity:
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     category: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """将实体转换为字典"""
@@ -76,6 +77,7 @@ class Entity:
             "id": self.id,
             "canonical_id": self.canonical_id,
             "category": self.category,
+            "metadata": self.metadata,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }

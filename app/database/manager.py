@@ -79,9 +79,13 @@ class DatabaseManager:
     @asynccontextmanager
     async def get_session(self) -> AsyncIterator[AsyncSession]:
         """获取数据库会话"""
-        session = AsyncSession(self.engine)
+        session = AsyncSession(self.engine, expire_on_commit=False)
         try:
             yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
         finally:
             await session.close()
     

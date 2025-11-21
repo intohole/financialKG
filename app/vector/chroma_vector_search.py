@@ -5,6 +5,7 @@
 
 import logging
 import os
+import asyncio
 from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 
@@ -119,10 +120,7 @@ class ChromaVectorSearch(VectorSearchBase):
             
             if index_name in collection_names:
                 # 获取现有集合
-                collection = self.client.get_collection(
-                    name=index_name,
-                    metadata={"hnsw:space": self.metric}
-                )
+                collection = self.client.get_collection(name=index_name)
                 self.collections[index_name] = collection
                 return collection
             else:
@@ -283,17 +281,23 @@ class ChromaVectorSearch(VectorSearchBase):
             QueryError: 当查询参数无效时
         """
         try:
+            print(f"DEBUG: 开始搜索向量: index_name='{index_name}', top_k={top_k}, filter_dict={filter_dict}")
+            
             # 获取集合
             collection = self._get_collection(index_name)
+            print(f"DEBUG: 获取集合成功: {collection.name}")
             
             # 验证查询向量
             if not query_vector or not isinstance(query_vector, list):
                 raise QueryError("无效的查询向量")
             
+            print(f"DEBUG: 查询向量验证通过: 维度={len(query_vector)}")
+            
             # 设置包含字段
             include = kwargs.get('include', ['embeddings', 'metadatas', 'documents', 'distances'])
             
             # 执行搜索
+            print(f"DEBUG: 执行Chroma查询: n_results={top_k}, filter={filter_dict}")
             results = collection.query(
                 query_embeddings=[query_vector],
                 n_results=top_k,
@@ -301,21 +305,28 @@ class ChromaVectorSearch(VectorSearchBase):
                 include=include
             )
             
+            print(f"DEBUG: Chroma查询完成: results.keys()={list(results.keys())}")
+            
+            # 检查搜索结果
+            if 'ids' not in results or results['ids'] is None or len(results['ids'][0]) == 0:
+                print("DEBUG: 搜索结果为空")
+                return []
+            
             # 格式化结果
             formatted_results = []
             for i in range(len(results['ids'][0])):
                 result = {
                     'id': results['ids'][0][i],
-                    'score': results['distances'][0][i] if 'distances' in results else None
+                    'score': results['distances'][0][i] if 'distances' in results and results['distances'] is not None else None
                 }
                 
-                if 'embeddings' in results and results['embeddings'] and results['embeddings'][0]:
+                if 'embeddings' in results and results['embeddings'] is not None and len(results['embeddings']) > 0 and results['embeddings'][0] is not None:
                     result['vector'] = results['embeddings'][0][i]
                 
-                if 'metadatas' in results and results['metadatas'] and results['metadatas'][0]:
+                if 'metadatas' in results and results['metadatas'] is not None and len(results['metadatas']) > 0 and results['metadatas'][0] is not None:
                     result['metadata'] = results['metadatas'][0][i]
                 
-                if 'documents' in results and results['documents'] and results['documents'][0]:
+                if 'documents' in results and results['documents'] is not None and len(results['documents']) > 0 and results['documents'][0] is not None:
                     result['text'] = results['documents'][0][i]
                 
                 formatted_results.append(result)
@@ -624,3 +635,225 @@ class ChromaVectorSearch(VectorSearchBase):
             
         except Exception as e:
             logger.error(f"关闭Chroma客户端失败: {str(e)}")
+
+    async def search_vectors_async(
+        self,
+        query_embedding: List[float],
+        content_type: str,
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        异步搜索向量（包装同步方法）
+        
+        Args:
+            query_embedding: 查询向量
+            content_type: 内容类型（实体或关系）
+            top_k: 返回结果数量
+            
+        Returns:
+            List[Dict[str, Any]]: 搜索结果列表
+        """
+        try:
+            print(f"DEBUG: 异步搜索向量开始: content_type='{content_type}', top_k={top_k}")
+            
+            # 构建过滤条件 - 使用ChromaDB支持的格式
+            filter_dict = None
+            if content_type:
+                filter_dict = {"content_type": {"$eq": content_type}}
+            print(f"DEBUG: 构建过滤条件: {filter_dict}")
+            
+            # 调用同步搜索方法
+            print(f"DEBUG: 调用同步搜索方法: index_name='{content_type}', query_vector维度={len(query_embedding)}")
+            results = await asyncio.get_event_loop().run_in_executor(
+                None,
+                self.search_vectors,
+                content_type,  # index_name
+                query_embedding,
+                top_k,
+                filter_dict
+            )
+            
+            print(f"DEBUG: 异步搜索向量完成: 返回结果数量={len(results)}")
+            return results
+            
+        except Exception as e:
+            logger.error(f"异步搜索向量失败: {str(e)}")
+            raise VectorOperationError("search_async", str(e))
+
+    def search_vectors_sync(
+        self,
+        query_embedding: List[float],
+        content_type: str,
+        top_k: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        同步搜索向量
+        
+        Args:
+            query_embedding: 查询向量
+            content_type: 内容类型（实体或关系）
+            top_k: 返回结果数量
+            
+        Returns:
+            List[Dict[str, Any]]: 搜索结果列表
+        """
+        try:
+            # 构建过滤条件 - 使用ChromaDB支持的格式
+            filter_dict = None
+            if content_type:
+                filter_dict = {"content_type": {"$eq": content_type}}
+            
+            # 调用同步搜索方法
+            results = self.search_vectors(
+                index_name=content_type,
+                query_vector=query_embedding,
+                top_k=top_k,
+                filter_dict=filter_dict
+            )
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"同步搜索向量失败: {str(e)}")
+            raise VectorOperationError("search_sync", str(e))
+
+    async def update_vector_async(
+        self,
+        vector_id: str,
+        embedding: List[float],
+        metadata: Dict[str, Any]
+    ) -> bool:
+        """
+        异步更新向量（包装同步方法）
+        
+        Args:
+            vector_id: 向量ID
+            embedding: 新的向量
+            metadata: 元数据
+            
+        Returns:
+            bool: 更新是否成功
+        """
+        try:
+            # 从metadata中获取内容类型
+            content_type = metadata.get("content_type", "entity")
+            
+            # 调用同步更新方法
+            success = await asyncio.get_event_loop().run_in_executor(
+                None,
+                self.update_vectors,
+                content_type,  # index_name
+                [embedding],
+                [vector_id],
+                [metadata]
+            )
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"异步更新向量失败: {str(e)}")
+            raise VectorOperationError("update_async", str(e))
+
+    def update_vector_sync(
+        self,
+        vector_id: str,
+        embedding: List[float],
+        metadata: Dict[str, Any]
+    ) -> bool:
+        """
+        同步更新向量
+        
+        Args:
+            vector_id: 向量ID
+            embedding: 新的向量
+            metadata: 元数据
+            
+        Returns:
+            bool: 更新是否成功
+        """
+        try:
+            # 从metadata中获取内容类型
+            content_type = metadata.get("content_type", "entity")
+            
+            # 调用同步更新方法
+            success = self.update_vectors(
+                index_name=content_type,
+                vectors=[embedding],
+                ids=[vector_id],
+                metadatas=[metadata]
+            )
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"同步更新向量失败: {str(e)}")
+            raise VectorOperationError("update_sync", str(e))
+
+    async def delete_vector_async(self, vector_id: str) -> bool:
+        """
+        异步删除向量（包装同步方法）
+        
+        Args:
+            vector_id: 向量ID
+            
+        Returns:
+            bool: 删除是否成功
+        """
+        try:
+            # 从向量ID中提取内容类型（假设格式为 content_type_uuid）
+            content_type = vector_id.split("_")[0] if "_" in vector_id else "entity"
+            
+            # 调用同步删除方法
+            success = await asyncio.get_event_loop().run_in_executor(
+                None,
+                self.delete_vectors,
+                content_type,  # index_name
+                [vector_id]
+            )
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"异步删除向量失败: {str(e)}")
+            raise VectorOperationError("delete_async", str(e))
+
+    def delete_vector_sync(self, vector_id: str) -> bool:
+        """
+        同步删除向量
+        
+        Args:
+            vector_id: 向量ID
+            
+        Returns:
+            bool: 删除是否成功
+        """
+        try:
+            # 从向量ID中提取内容类型（假设格式为 content_type_uuid）
+            content_type = vector_id.split("_")[0] if "_" in vector_id else "entity"
+            
+            # 调用同步删除方法
+            success = self.delete_vectors(
+                index_name=content_type,
+                ids=[vector_id]
+            )
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"同步删除向量失败: {str(e)}")
+            raise VectorOperationError("delete_sync", str(e))
+
+    def health_check(self) -> str:
+        """
+        健康检查
+        
+        Returns:
+            str: 健康状态（"healthy" 或 "unhealthy"）
+        """
+        try:
+            # 尝试列出集合来检查连接
+            collections = self.client.list_collections()
+            return "healthy"
+        except Exception as e:
+            logger.error(f"Chroma健康检查失败: {str(e)}")
+            return "unhealthy"

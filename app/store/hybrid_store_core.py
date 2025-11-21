@@ -96,9 +96,17 @@ class HybridStoreCore(StoreBase):
                     "description": entity.description
                 }
                 
+                print(f"DEBUG: 准备添加实体到向量索引: entity_id={created_entity.id}, content='{content}', metadata={metadata}")
+                
                 vector_id = await self.vector_manager.add_to_index(
                     content, created_entity.id, "entity", metadata
                 )
+                
+                print(f"DEBUG: 实体向量添加完成: vector_id='{vector_id}'")
+                
+                # 更新实体的vector_id字段
+                created_entity.vector_id = vector_id
+                await session.flush()
                 
                 # 转换回业务实体
                 return self.data_converter.db_entity_to_entity(created_entity, vector_id)
@@ -110,15 +118,21 @@ class HybridStoreCore(StoreBase):
     async def get_entity(self, entity_id: int) -> Optional[Entity]:
         """获取实体"""
         try:
+            logger.info(f"开始获取实体，ID: {entity_id}")
             async with self.db_manager.get_session() as session:
                 entity_repository = EntityRepository(session)
                 db_entity = await entity_repository.get_by_id(entity_id)
+                logger.info(f"数据库查询结果: {db_entity}")
                 if not db_entity:
+                    logger.warning(f"实体未找到，ID: {entity_id}")
                     return None
                 
                 # 从数据库实体获取vector_id
                 vector_id = getattr(db_entity, 'vector_id', None)
-                return self.data_converter.db_entity_to_entity(db_entity, vector_id)
+                logger.info(f"实体vector_id: {vector_id}")
+                result = self.data_converter.db_entity_to_entity(db_entity, vector_id)
+                logger.info(f"转换后的实体: {result}")
+                return result
                 
         except Exception as e:
             logger.error(f"获取实体失败: {e}")
@@ -201,7 +215,7 @@ class HybridStoreCore(StoreBase):
             results = await self.vector_manager.search_vectors(query, "entity", limit)
             
             # 获取实体ID
-            entity_ids = [r['content_id'] for r in results]
+            entity_ids = [r['metadata']['content_id'] for r in results if r.get('metadata') and 'content_id' in r['metadata']]
             
             # 获取实体
             entities = []
