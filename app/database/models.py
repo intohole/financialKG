@@ -13,6 +13,7 @@ class Entity(Base):
     description = Column(Text, comment='实体描述')
     # 指向官方/合并后的实体，NULL 表示自己就是官方实体
     canonical_id = Column(Integer, ForeignKey('entities.id'), nullable=True, comment='合并后的官方实体ID')
+    vector_id = Column(String(255), nullable=True, comment='向量存储中的ID')
     created_at  = Column(DateTime, default=datetime.utcnow, comment='创建时间')
     updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
 
@@ -31,6 +32,7 @@ class Relation(Base):
     predicate   = Column(String(128), nullable=False, comment='谓词/关系类型')
     object_id   = Column(Integer, ForeignKey('entities.id'), nullable=False, comment='客体实体ID')
     description = Column(Text, comment='关系描述')
+    vector_id = Column(String(255), nullable=True, comment='向量存储中的ID')
     created_at  = Column(DateTime, default=datetime.utcnow, comment='创建时间')
 
     # 联合唯一：同一主体+谓词+客体只能出现一次

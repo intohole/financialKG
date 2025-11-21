@@ -116,7 +116,9 @@ class HybridStoreCore(StoreBase):
                 if not db_entity:
                     return None
                 
-                return self.data_converter.db_entity_to_entity(db_entity)
+                # 从数据库实体获取vector_id
+                vector_id = getattr(db_entity, 'vector_id', None)
+                return self.data_converter.db_entity_to_entity(db_entity, vector_id)
                 
         except Exception as e:
             logger.error(f"获取实体失败: {e}")

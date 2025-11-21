@@ -12,8 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 # 避免循环导入，在函数内部导入
 # from .core import DatabaseConfig, DatabaseError
-from sqlalchemy.orm import declarative_base
-Base = declarative_base()
+from app.database.models import Base
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -27,7 +26,11 @@ class DatabaseManager:
         from .core import DatabaseError
         self.config = config
         self._engine = None
-        self._init_engine()
+        try:
+            self._init_engine()
+        except Exception as e:
+            # 确保DatabaseError在作用域内
+            raise DatabaseError(f"数据库管理器初始化失败: {e}")
     
     def _init_engine(self):
         """初始化数据库引擎"""

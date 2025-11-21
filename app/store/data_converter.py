@@ -48,6 +48,10 @@ class DataConverter:
         # 如果metadata存在且不为None，添加到结果中
         if hasattr(entity, 'metadata') and entity.metadata is not None:
             result['metadata'] = entity.metadata
+        
+        # 如果vector_id存在且不为None，添加到结果中
+        if hasattr(entity, 'vector_id') and entity.vector_id is not None:
+            result['vector_id'] = entity.vector_id
             
         return result
     

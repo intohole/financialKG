@@ -162,6 +162,7 @@ Temporary Items
 *.swo
 *~
 
+*.pyc
 # Trae
 
 
@@ -169,3 +170,6 @@ Temporary Items
 config.local.yaml
 *.log
 logs/
+
+
+*.db
