@@ -58,16 +58,19 @@ class PromptManager:
         Raises:
             PromptError: 当提示词文件不存在或读取失败时
         """
+        logger.info(f"开始加载提示词: {prompt_name}")
+        
         # 尝试不同的扩展名
         for ext in ['.txt', '.md', '.prompt']:
             prompt_file = self._prompt_dir / f"{prompt_name}{ext}"
             if prompt_file.exists():
                 try:
+                    logger.info(f"找到提示词文件: {prompt_file}")
                     with open(prompt_file, 'r', encoding='utf-8') as f:
                         content = f.read().strip()
                     self._prompts[prompt_name] = content
                     self._last_loaded[prompt_name] = prompt_file.stat().st_mtime
-                    logger.debug(f"成功加载提示词: {prompt_name} from {prompt_file}")
+                    logger.info(f"成功加载提示词: {prompt_name}, 内容长度: {len(content)}, 内容预览: {content[:100]}...")
                     return content
                 except Exception as e:
                     raise PromptError(f"读取提示词文件失败: {prompt_file}", prompt_name=prompt_name)
@@ -76,15 +79,17 @@ class PromptManager:
         prompt_file = self._prompt_dir / prompt_name
         if prompt_file.exists():
             try:
+                logger.info(f"找到提示词文件: {prompt_file}")
                 with open(prompt_file, 'r', encoding='utf-8') as f:
                     content = f.read().strip()
                 self._prompts[prompt_name] = content
                 self._last_loaded[prompt_name] = prompt_file.stat().st_mtime
-                logger.debug(f"成功加载提示词: {prompt_name} from {prompt_file}")
+                logger.info(f"成功加载提示词: {prompt_name}, 内容长度: {len(content)}, 内容预览: {content[:100]}...")
                 return content
             except Exception as e:
                 raise PromptError(f"读取提示词文件失败: {prompt_file}", prompt_name=prompt_name)
         
+        logger.error(f"提示词文件不存在: {prompt_name}")
         raise PromptError(f"提示词文件不存在: {prompt_name}", prompt_name=prompt_name)
     
     def load_all_prompts(self) -> Dict[str, str]:
@@ -119,7 +124,10 @@ class PromptManager:
         Returns:
             str: 提示词内容
         """
+        logger.info(f"获取提示词: {prompt_name}, 重新加载: {reload}, 缓存中是否存在: {prompt_name in self._prompts}")
+        
         if reload or prompt_name not in self._prompts:
+            logger.info(f"重新加载提示词: {prompt_name}")
             return self.load_prompt(prompt_name)
         
         # 检查文件是否被修改
@@ -127,9 +135,13 @@ class PromptManager:
             prompt_file = self._prompt_dir / f"{prompt_name}{ext}"
             if prompt_file.exists():
                 if prompt_file.stat().st_mtime > self._last_loaded.get(prompt_name, 0):
+                    logger.info(f"提示词文件已修改，重新加载: {prompt_name}")
                     return self.load_prompt(prompt_name)
         
-        return self._prompts[prompt_name]
+        logger.info(f"从缓存返回提示词: {prompt_name}")
+        result = self._prompts[prompt_name]
+        logger.info(f"提示词内容预览: {result[:100]}...")
+        return result
     
     def format_prompt(self, prompt_name: str, **kwargs) -> str:
         """格式化提示词模板

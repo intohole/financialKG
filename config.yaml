@@ -99,22 +99,95 @@ news_processing:
 
 # 知识图谱配置
 knowledge_graph:
-  entity_types:
-    - "公司"
-    - "人物"
-    - "行业"
-    - "产品"
-    - "地点"
-    - "事件"
-  relation_types:
-    - "属于"
-    - "位于"
-    - "生产"
-    - "投资"
-    - "合作"
-    - "竞争"
+  # 多类别知识图谱配置
+  categories:
+    financial:
+      name: "金融财经"
+      description: "金融、财经、股票、证券等相关内容"
+      entity_types:
+        - "公司"
+        - "人物"
+        - "行业"
+        - "产品"
+        - "地点"
+        - "事件"
+      relation_types:
+        - "属于"
+        - "位于"
+        - "生产"
+        - "投资"
+        - "合作"
+        - "竞争"
+    technology:
+      name: "科技互联网"
+      description: "科技、互联网、人工智能等相关内容"
+      entity_types:
+        - "公司"
+        - "人物"
+        - "技术"
+        - "产品"
+        - "平台"
+        - "概念"
+      relation_types:
+        - "开发"
+        - "投资"
+        - "收购"
+        - "合作"
+        - "竞争"
+        - "应用"
+    medical:
+      name: "医疗健康"
+      description: "医疗、健康、药品、生物科技等相关内容"
+      entity_types:
+        - "公司"
+        - "人物"
+        - "药品"
+        - "疾病"
+        - "技术"
+        - "机构"
+      relation_types:
+        - "生产"
+        - "研发"
+        - "治疗"
+        - "投资"
+        - "合作"
+        - "属于"
+    education:
+      name: "教育培训"
+      description: "教育、培训、学术等相关内容"
+      entity_types:
+        - "机构"
+        - "人物"
+        - "课程"
+        - "技术"
+        - "平台"
+        - "概念"
+      relation_types:
+        - "提供"
+        - "合作"
+        - "投资"
+        - "开发"
+        - "应用"
+        - "属于"
+  
+  # 默认类别（当无法确定类别时使用）
+  default_category: "financial"
+  
+  # 内容分类配置
+  classification:
+    enabled: true
+    confidence_threshold: 0.7
+    supported_categories: ["financial", "technology", "medical", "education"]
+  
+  # 实体相似度配置
   similarity_threshold: 0.7
   max_entities_per_news: 50
+  
+  # 实体合并配置
+  entity_merging:
+    enabled: true
+    similarity_threshold: 0.85
+    max_candidates: 5
 
 # 向量搜索配置
 vector_search:

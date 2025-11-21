@@ -1,0 +1,16 @@
+请分析以下文本内容，判断其所属类别并提取相关实体和关系：
+
+文本内容：
+{text}
+
+分析要求：
+1. 判断内容是否属于以下类别之一：financial（金融）、technology（科技）、medical（医疗）、education（教育）
+2. 如果属于金融类别，请提取相关的实体和关系
+3. 提供置信度评分（0.0-1.0）
+4. 给出判断理由
+
+输出格式：
+类别：financial/technology/medical/education/unknown
+置信度：[0.0-1.0]
+理由：[详细解释判断依据]
+是否支持：true/false
