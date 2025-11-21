@@ -17,15 +17,15 @@ from app.vector.exceptions import (
     VectorSearchError,
     IndexNotFoundError,
     DimensionMismatchError,
-    ConnectionError,
+    VectorSearchConnectionError as ConnectionError,
     QueryError,
-    InsertionError,
-    DeletionError,
-    UpdateError,
-    ConfigurationError,
-    AuthenticationError,
-    RateLimitError,
-    TimeoutError
+    VectorOperationError as InsertionError,
+    VectorOperationError as DeletionError,
+    VectorOperationError as UpdateError,
+    VectorSearchError as ConfigurationError,
+    VectorSearchError as AuthenticationError,
+    VectorSearchError as RateLimitError,
+    VectorSearchTimeoutError as TimeoutError
 )
 
 # 版本信息

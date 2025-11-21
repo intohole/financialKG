@@ -87,6 +87,18 @@ class DatabaseManager:
         if self._engine:
             await self._engine.dispose()
             logger.info("数据库连接已关闭")
+    
+    async def health_check(self) -> bool:
+        """健康检查"""
+        try:
+            from sqlalchemy import text
+            async with self.engine.connect() as conn:
+                result = await conn.execute(text("SELECT 1"))
+                await result.scalar()
+            return True
+        except Exception as e:
+            logger.error(f"数据库健康检查失败: {e}")
+            return False
 
 
 # 全局数据库管理器实例

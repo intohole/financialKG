@@ -30,3 +30,20 @@ class VectorStoreError(StoreError):
 class MetadataStoreError(StoreError):
     """元数据存储异常"""
     pass
+
+
+class ValidationError(StoreError):
+    """数据验证异常"""
+    def __init__(self, message: str, field: str = None):
+        self.field = field
+        super().__init__(message)
+
+
+class ConnectionError(StoreError):
+    """数据库连接异常"""
+    pass
+
+
+class TransactionError(StoreError):
+    """事务处理异常"""
+    pass
