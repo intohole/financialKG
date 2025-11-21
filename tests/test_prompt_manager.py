@@ -245,7 +245,7 @@ class TestPromptManager:
         assert prompt_manager.get_prompt("special_prompt") == special_content
         
         # 格式化包含特殊字符的提示词
-        special_template = "特殊模板 {var} 包含 & < > ""
+        special_template = "特殊模板 {var} 包含 & < > \""
         prompt_manager.add_prompt("special_template", special_template)
         formatted = prompt_manager.format_prompt("special_template", var="测试")
-        assert formatted == "特殊模板 测试 包含 & < > ""
+        assert formatted == "特殊模板 测试 包含 & < > \""

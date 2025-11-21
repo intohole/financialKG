@@ -20,11 +20,42 @@ class TestContentProcessorConfig:
         mock = MagicMock()
         # 分类响应
         classification_response = MagicMock()
-        classification_response.content = '''{"category": "financial", "confidence": 0.9, "reasoning": "包含金融相关词汇", "is_financial_content": true, "supported": true}'''
+        classification_response.content = '''```json
+        {
+            "category": "financial",
+            "confidence": 0.9,
+            "reasoning": "包含金融相关词汇",
+            "is_financial_content": true,
+            "supported": true
+        }
+        ```'''
         
         # 实体关系提取响应
         extraction_response = MagicMock()
-        extraction_response.content = '''{"is_financial_content": true, "confidence": 0.8, "entities": [{"name": "苹果公司", "type": "公司", "description": "科技公司"}], "relations": [{"source": "苹果公司", "target": "iPhone", "relation_type": "生产", "confidence": 0.7}]}'''
+        extraction_response.content = '''```json
+        {
+            "is_financial_content": true,
+            "confidence": 0.8,
+            "entities": [
+                {
+                    "name": "苹果公司",
+                    "type": "公司",
+                    "description": "科技公司",
+                    "properties": {}
+                }
+            ],
+            "relations": [
+                {
+                    "source": "苹果公司",
+                    "target": "iPhone",
+                    "relation_type": "生产",
+                    "confidence": 0.7,
+                    "description": "",
+                    "properties": {}
+                }
+            ]
+        }
+        ```'''
         
         mock.async_generate = AsyncMock(side_effect=[classification_response, extraction_response])
         return mock
@@ -57,10 +88,11 @@ class TestContentProcessorConfig:
         # 测试文本
         test_text = "苹果公司发布新款iPhone，售价5999元起。"
         
-        # 调用分类方法
+        # 调用分类方法，使用增强版prompt以支持自定义类别
         result = await content_processor.classify_content(
             test_text,
-            category_config=category_config
+            category_config=category_config,
+            prompt_key='content_classification_enhanced'
         )
         
         # 验证结果
@@ -93,7 +125,30 @@ class TestContentProcessorConfig:
         
         # Mock generate_with_prompt方法
         with patch.object(content_processor, 'generate_with_prompt') as mock_generate:
-            mock_generate.return_value = '''{"is_financial_content": true, "confidence": 0.8, "entities": [{"name": "苹果公司", "type": "公司", "description": "科技公司", "properties": {}}], "relations": [{"source": "苹果公司", "target": "iPhone", "relation_type": "生产", "confidence": 0.7, "description": "", "properties": {}}]}'''
+            mock_generate.return_value = '''```json
+            {
+                "is_financial_content": true,
+                "confidence": 0.8,
+                "entities": [
+                    {
+                        "name": "苹果公司",
+                        "type": "公司",
+                        "description": "科技公司",
+                        "properties": {}
+                    }
+                ],
+                "relations": [
+                    {
+                        "source": "苹果公司",
+                        "target": "iPhone",
+                        "relation_type": "生产",
+                        "confidence": 0.7,
+                        "description": "",
+                        "properties": {}
+                    }
+                ]
+            }
+            ```'''
             
             # 调用实体关系提取方法
             result = await content_processor.extract_entities_and_relations(
@@ -104,10 +159,10 @@ class TestContentProcessorConfig:
             
             # 验证结果
             assert isinstance(result, KnowledgeExtractionResult)
-            assert result.is_financial_content is not None
-            assert result.confidence > 0
-            assert result.entities is not None
-            assert result.relations is not None
+            assert result.content_classification.is_financial_content is not None
+            assert result.content_classification.confidence > 0
+            assert result.knowledge_graph.entities is not None
+            assert result.knowledge_graph.relations is not None
             
             # 验证generate_with_prompt被正确调用
             mock_generate.assert_called_once_with(
@@ -123,7 +178,15 @@ class TestContentProcessorConfig:
         
         # Mock generate_with_prompt方法
         with patch.object(content_processor, 'generate_with_prompt') as mock_generate:
-            mock_generate.return_value = '''{"category": "financial", "confidence": 0.9, "reasoning": "包含金融相关词汇", "is_financial_content": true, "supported": true}'''
+            mock_generate.return_value = '''```json
+            {
+                "category": "financial",
+                "confidence": 0.9,
+                "reasoning": "包含金融相关词汇",
+                "is_financial_content": true,
+                "supported": true
+            }
+            ```'''
             
             # 测试不传入新参数的调用
             result1 = await content_processor.classify_content(test_text)
@@ -132,7 +195,30 @@ class TestContentProcessorConfig:
             assert isinstance(result1, ContentClassificationResult)
             
             # 重置mock
-            mock_generate.return_value = '''{"is_financial_content": true, "confidence": 0.8, "entities": [{"name": "苹果公司", "type": "公司", "description": "科技公司", "properties": {}}], "relations": [{"source": "苹果公司", "target": "iPhone", "relation_type": "生产", "confidence": 0.7, "description": "", "properties": {}}]}'''
+            mock_generate.return_value = '''```json
+            {
+                "is_financial_content": true,
+                "confidence": 0.8,
+                "entities": [
+                    {
+                        "name": "苹果公司",
+                        "type": "公司",
+                        "description": "科技公司",
+                        "properties": {}
+                    }
+                ],
+                "relations": [
+                    {
+                        "source": "苹果公司",
+                        "target": "iPhone",
+                        "relation_type": "生产",
+                        "confidence": 0.7,
+                        "description": "",
+                        "properties": {}
+                    }
+                ]
+            }
+            ```'''
             
             # 测试实体关系提取
             result2 = await content_processor.extract_entities_and_relations(test_text)
@@ -172,7 +258,15 @@ class TestContentProcessorConfig:
         """测试格式化prompt参数"""
         # Mock generate_with_prompt方法
         with patch.object(content_processor, 'generate_with_prompt') as mock_generate:
-            mock_generate.return_value = '''{"category": "financial", "confidence": 0.9, "reasoning": "包含金融相关词汇", "is_financial_content": true, "supported": true}'''
+            mock_generate.return_value = '''```json
+            {
+                "category": "financial",
+                "confidence": 0.9,
+                "reasoning": "包含金融相关词汇",
+                "is_financial_content": true,
+                "supported": true
+            }
+            ```'''
             
             test_text = "测试文本"
             category_config = {

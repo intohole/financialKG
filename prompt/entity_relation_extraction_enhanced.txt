@@ -17,25 +17,25 @@
 请严格按照以下JSON格式返回结果：
 
 ```json
-{
+{{
   "is_financial_content": true/false,
   "confidence": 0.0-1.0,
   "entities": [
-    {
+    {{
       "name": "实体名称",
       "type": "实体类型",
       "description": "实体描述"
-    }
+    }}
   ],
   "relations": [
-    {
+    {{
       "subject": "主体实体名称",
       "predicate": "关系类型",
       "object": "客体实体名称",
       "description": "关系描述"
-    }
+    }}
   ]
-}
+}}
 ```
 
 ## 提取规则

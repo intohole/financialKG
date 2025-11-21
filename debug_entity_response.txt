@@ -1,0 +1,130 @@
+=== PROMPT ===
+你是一位专业的金融知识图谱构建专家。请从给定的文本中提取知识图谱的三要素（实体、关系、属性），并按照指定的格式返回结果。
+
+## 任务要求
+
+1. **实体提取**：识别文本中的实体，包括以下类型：
+公司, 人物, 品牌
+
+2. **关系提取**：识别实体之间的关系，包括以下类型：
+投资, 合作, 竞争
+
+3. **内容分类**：判断文本是否属于金融/财经内容
+
+## 输入文本
+```
+腾讯公司投资了京东集团，双方建立了战略合作关系
+```
+
+## 输出格式
+请严格按照以下JSON格式返回结果：
+
+```json
+{
+  "is_financial_content": true/false,
+  "confidence": 0.0-1.0,
+  "entities": [
+    {
+      "name": "实体名称",
+      "type": "实体类型",
+      "description": "实体描述"
+    }
+  ],
+  "relations": [
+    {
+      "subject": "主体实体名称",
+      "predicate": "关系类型",
+      "object": "客体实体名称",
+      "description": "关系描述"
+    }
+  ]
+}
+```
+
+## 提取规则
+
+1. **实体去重**：相同的实体只保留一个
+2. **关系准确性**：确保关系真实存在于文本中
+3. **描述详细**：提供准确、详细的描述
+4. **置信度**：对内容分类结果给出置信度评分
+
+## 示例
+
+输入："阿里巴巴集团今日宣布，其子公司蚂蚁集团将在上海设立新的金融科技总部。"
+
+输出：
+```json
+{
+  "is_financial_content": true,
+  "confidence": 0.95,
+  "entities": [
+    {
+      "name": "阿里巴巴集团",
+      "type": "公司",
+      "description": "中国大型互联网公司，旗下拥有多个业务板块"
+    },
+    {
+      "name": "蚂蚁集团",
+      "type": "公司",
+      "description": "阿里巴巴集团的子公司，专注于金融科技服务"
+    },
+    {
+      "name": "上海",
+      "type": "地点",
+      "description": "中国直辖市，重要的金融中心"
+    }
+  ],
+  "relations": [
+    {
+      "subject": "蚂蚁集团",
+      "predicate": "属于",
+      "object": "阿里巴巴集团",
+      "description": "蚂蚁集团是阿里巴巴集团的子公司"
+    },
+    {
+      "subject": "蚂蚁集团",
+      "predicate": "位于",
+      "object": "上海",
+      "description": "蚂蚁集团将在上海设立新的总部"
+    }
+  ]
+}
+```
+
+请开始提取：
+=== END PROMPT ===
+
+=== RAW RESPONSE ===
+```json
+{
+  "is_financial_content": true,
+  "confidence": 0.95,
+  "entities": [
+    {
+      "name": "腾讯公司",
+      "type": "公司",
+      "description": "中国领先的互联网科技公司"
+    },
+    {
+      "name": "京东集团",
+      "type": "公司",
+      "description": "中国领先的电子商务公司"
+    }
+  ],
+  "relations": [
+    {
+      "subject": "腾讯公司",
+      "predicate": "投资",
+      "object": "京东集团",
+      "description": "腾讯公司对京东集团进行了投资"
+    },
+    {
+      "subject": "腾讯公司",
+      "predicate": "合作",
+      "object": "京东集团",
+      "description": "腾讯公司与京东集团建立了战略合作关系"
+    }
+  ]
+}
+```
+=== END RAW RESPONSE ===

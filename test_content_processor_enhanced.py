@@ -49,7 +49,8 @@ class TestContentProcessorEnhanced:
         
         result = await processor.classify_content(
             text=text,
-            category_config=sample_category_config
+            category_config=sample_category_config,
+            prompt_key='content_classification_enhanced'
         )
         
         assert isinstance(result, ContentClassificationResult)
@@ -66,7 +67,8 @@ class TestContentProcessorEnhanced:
         
         result = await processor.classify_content(
             text=text,
-            categories=custom_categories
+            categories=custom_categories,
+            prompt_key='content_classification_enhanced'
         )
         
         assert isinstance(result, ContentClassificationResult)
@@ -107,14 +109,14 @@ class TestContentProcessorEnhanced:
         )
         
         assert isinstance(result, KnowledgeExtractionResult)
-        assert len(result.entities) > 0
-        assert len(result.relations) > 0
+        assert len(result.knowledge_graph.entities) > 0
+        assert len(result.knowledge_graph.relations) > 0
         
         # 验证实体类型是否在自定义列表中
-        for entity in result.entities:
+        for entity in result.knowledge_graph.entities:
             assert entity.type in custom_entity_types
         
-        print(f"提取到 {len(result.entities)} 个实体, {len(result.relations)} 个关系")
+        print(f"提取到 {len(result.knowledge_graph.entities)} 个实体, {len(result.knowledge_graph.relations)} 个关系")
     
     @pytest.mark.asyncio
     async def test_extract_entities_with_enhanced_prompt(self, processor):
@@ -127,8 +129,8 @@ class TestContentProcessorEnhanced:
         )
         
         assert isinstance(result, KnowledgeExtractionResult)
-        assert len(result.entities) > 0
-        print(f"增强prompt提取到 {len(result.entities)} 个实体")
+        assert len(result.knowledge_graph.entities) > 0
+        print(f"增强prompt提取到 {len(result.knowledge_graph.entities)} 个实体")
     
     @pytest.mark.asyncio
     async def test_backward_compatibility(self, processor):
@@ -180,7 +182,8 @@ class TestContentProcessorEnhanced:
         
         result = await processor.classify_content(
             text=text,
-            category_config=complex_config
+            category_config=complex_config,
+            prompt_key='content_classification_enhanced'
         )
         
         assert isinstance(result, ContentClassificationResult)
