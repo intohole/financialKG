@@ -11,6 +11,23 @@ llm:
   temperature: 0.1
   max_tokens: 2048
 
+# 调度器配置
+scheduler:
+  timezone: "Asia/Shanghai"
+  max_workers: 10
+  coalesce: true
+  misfire_grace_time: 300
+  log_level: "INFO"
+  log_file: null
+  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  job_store:
+    type: "memory"
+    url: null
+  executor:
+    type: "asyncio"
+    max_workers: 10
+  tasks: []
+
 # 嵌入模型配置
 embedding:
   model: "embedding-3"  # 使用智谱AI的embedding-3模型
@@ -18,7 +35,7 @@ embedding:
   base_url: "https://open.bigmodel.cn/api/paas/v4/"  # 智谱AI的API地址
   timeout: 30
   max_retries: 3
-  dimension: 2  # 嵌入向量维度，与API调用一致
+  dimension: 1536  # 嵌入向量维度，与API调用一致
   normalize: true  # 是否归一化向量
 
 # 数据库配置
@@ -36,23 +53,6 @@ api:
   reload: false
   workers: 1
   log_level: "info"
-
-# 调度器配置
-scheduler:
-  timezone: "Asia/Shanghai"
-  max_workers: 10
-  coalesce: true
-  misfire_grace_time: 300
-  log_level: "INFO"
-  log_file: null
-  log_format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  job_store:
-    type: "memory"
-    url: null
-  executor:
-    type: "asyncio"
-    max_workers: 10
-  tasks: []
 
 # 日志配置
 logging:
