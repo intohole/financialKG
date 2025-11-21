@@ -58,7 +58,7 @@ class VectorIndexManager:
                 final_metadata = metadata or {}
                 final_metadata['content_type'] = content_type
                 
-                print(f"DEBUG: 添加向量到索引: index_name='{content_type}', vector_id='{vector_id}', metadata={final_metadata}")
+                logger.debug(f"添加向量到索引: index_name='{content_type}', vector_id='{vector_id}', metadata={final_metadata}")
                 
                 success = self.vector_store.add_vectors(
                     index_name=content_type,
@@ -85,23 +85,23 @@ class VectorIndexManager:
                 raise ValueError("向量存储或嵌入服务未初始化")
             
             # 生成查询向量
-            print(f"DEBUG: 生成查询向量: query='{query}', content_type='{content_type}'")
+            logger.debug(f"生成查询向量: query='{query}', content_type='{content_type}'")
             query_embedding = await asyncio.get_event_loop().run_in_executor(
                 self.executor,
                 self.embedding_service.embed_text,
                 query,
                 True  # use_cache
             )
-            print(f"DEBUG: 查询向量生成完成: 维度={len(query_embedding) if query_embedding else 0}")
+            logger.debug(f"查询向量生成完成: 维度={len(query_embedding) if query_embedding else 0}")
             
             # 搜索相似向量
-            print(f"DEBUG: 开始向量搜索: content_type='{content_type}', top_k={limit}")
+            logger.debug(f"开始向量搜索: content_type='{content_type}', top_k={limit}")
             results = await self.vector_store.search_vectors_async(
                 query_embedding=query_embedding,
                 content_type=content_type,
                 top_k=limit
             )
-            print(f"DEBUG: 向量搜索完成: 返回结果数量={len(results)}")
+            logger.debug(f"向量搜索完成: 返回结果数量={len(results)}")
             
             return results
             
