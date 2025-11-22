@@ -15,6 +15,8 @@ from app.store.base import StoreBase, Entity, Relation, NewsEvent, StoreConfig, 
 from app.store.exceptions import StoreError, EntityNotFoundError, RelationNotFoundError
 from app.store.data_converter import DataConverter
 from app.store.vector_index_manager import VectorIndexManager
+from app.store.entity_operations import EntityOperations
+from app.store.relation_operations import RelationOperations
 from app.vector.base import VectorSearchBase
 from app.embedding import EmbeddingService
 
@@ -43,6 +45,10 @@ class HybridStoreCore(StoreBase):
         # 初始化工具
         self.vector_manager = VectorIndexManager(vector_store, embedding_service, executor)
         self.data_converter = DataConverter()
+        
+        # 初始化操作模块
+        self.entity_operations = EntityOperations(db_manager, self.vector_manager, self.data_converter, executor)
+        self.relation_operations = RelationOperations(db_manager, self.vector_manager, self.data_converter, executor)
         
         self._initialized = False
     
@@ -875,3 +881,91 @@ class HybridStoreCore(StoreBase):
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
             }
+    
+    # 实体相似度查找功能
+    async def find_similar_entities(self, entity_id: int, similarity_threshold: float = 0.7,
+                                   top_k: int = 10) -> List[Dict[str, Any]]:
+        """查找相似实体
+        
+        Args:
+            entity_id: 目标实体ID
+            similarity_threshold: 相似度阈值
+            top_k: 返回结果数量限制
+            
+        Returns:
+            List[Dict[str, Any]]: 相似实体列表，包含实体和相似度分数
+            
+        Raises:
+            EntityNotFoundError: 目标实体未找到时抛出
+            StoreError: 搜索失败时抛出
+        """
+        return await self.entity_operations.find_similar_entities(entity_id, similarity_threshold, top_k)
+    
+    # 实体合并功能
+    async def merge_similar_entities(self, entity_ids: List[int], target_entity_data: Dict[str, Any]) -> Entity:
+        """合并相似实体
+        
+        Args:
+            entity_ids: 要合并的实体ID列表
+            target_entity_data: 目标实体的数据，包含名称、描述、类型等
+            
+        Returns:
+            Entity: 合并后的新实体
+            
+        Raises:
+            EntityNotFoundError: 实体未找到时抛出
+            StoreError: 合并失败时抛出
+        """
+        return await self.entity_operations.merge_similar_entities(entity_ids, target_entity_data)
+    
+    # 知识图谱主体合并功能
+    async def merge_knowledge_graph_subjects(self, subject_name: str, entity_type: Optional[str] = None) -> Entity:
+        """合并知识图谱中的主体实体
+        
+        Args:
+            subject_name: 主体名称
+            entity_type: 实体类型过滤，可选
+            
+        Returns:
+            Entity: 合并后的主体实体
+            
+        Raises:
+            StoreError: 合并失败时抛出
+        """
+        return await self.entity_operations.merge_knowledge_graph_subjects(subject_name, entity_type)
+    
+    # 图遍历相关功能
+    async def find_related_entities(self, entity_id: int, predicate: Optional[str] = None,
+                                   max_depth: int = 2) -> List[Dict[str, Any]]:
+        """查找相关实体（图遍历）
+        
+        Args:
+            entity_id: 起始实体ID
+            predicate: 关系类型过滤，可选
+            max_depth: 最大搜索深度
+            
+        Returns:
+            List[Dict[str, Any]]: 相关实体列表，包含实体和关系信息
+            
+        Raises:
+            EntityNotFoundError: 起始实体未找到时抛出
+            StoreError: 搜索失败时抛出
+        """
+        return await self.relation_operations.find_related_entities(entity_id, predicate, max_depth)
+    
+    # 关系合并功能
+    async def merge_duplicate_relations(self, subject_id: int, object_id: int) -> List[Relation]:
+        """合并重复关系
+        
+        Args:
+            subject_id: 主体实体ID
+            object_id: 客体实体ID
+            
+        Returns:
+            List[Relation]: 合并后的关系列表
+            
+        Raises:
+            EntityNotFoundError: 实体未找到时抛出
+            StoreError: 合并失败时抛出
+        """
+        return await self.relation_operations.merge_duplicate_relations(subject_id, object_id)
