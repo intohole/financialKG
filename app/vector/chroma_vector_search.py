@@ -299,10 +299,22 @@ class ChromaVectorSearch(VectorSearchBase):
             
             # 执行搜索
             print(f"DEBUG: 执行Chroma查询: n_results={top_k}, filter={filter_dict}")
+            
+            # 构建ChromaDB格式的where条件
+            chroma_where = None
+            if filter_dict:
+                # 如果只有一个条件，直接使用
+                if len(filter_dict) == 1:
+                    chroma_where = filter_dict
+                else:
+                    # 多个条件需要使用 $and 操作符
+                    chroma_where = {"$and": [{k: v} for k, v in filter_dict.items()]}
+            
+            print(f"DEBUG: 转换后的Chroma where条件: {chroma_where}")
             results = collection.query(
                 query_embeddings=[query_vector],
                 n_results=top_k,
-                where=filter_dict,
+                where=chroma_where,
                 include=include
             )
             

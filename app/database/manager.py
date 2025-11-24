@@ -33,15 +33,37 @@ class DatabaseManager:
             raise DatabaseError(f"数据库管理器初始化失败: {e}")
     
     def _init_engine(self):
-        """初始化数据库引擎"""
+        """初始化数据库引擎""" 
         try:
             from sqlalchemy.ext.asyncio import create_async_engine
             
-            self._engine = create_async_engine(
-                self.config.database_url,
-                **self.config.get_engine_kwargs()
-            )
-            logger.info(f"数据库引擎创建成功: {self.config.database_url}")
+            # 获取数据库URL，支持不同的配置对象
+            database_url = getattr(self.config, 'database_url', None) or getattr(self.config, 'url', None)
+            if not database_url:
+                raise ValueError("数据库URL未配置")
+            
+            # 获取引擎配置
+            engine_kwargs = {}
+            if hasattr(self.config, 'get_engine_kwargs'):
+                engine_kwargs = self.config.get_engine_kwargs()
+            else:
+                # 默认配置
+                engine_kwargs = {
+                    'echo': getattr(self.config, 'echo', False),
+                    'pool_pre_ping': getattr(self.config, 'pool_pre_ping', True),
+                    'pool_recycle': getattr(self.config, 'pool_recycle', 3600)
+                }
+                
+                # SQLite特殊配置
+                if 'sqlite' in database_url:
+                    from sqlalchemy.pool import StaticPool
+                    engine_kwargs.update({
+                        'poolclass': StaticPool,
+                        'connect_args': {'check_same_thread': False}
+                    })
+            
+            self._engine = create_async_engine(database_url, **engine_kwargs)
+            logger.info(f"数据库引擎创建成功: {database_url}")
         except Exception as e:
             logger.error(f"数据库引擎初始化失败: {e}")
             raise DatabaseError(f"数据库引擎初始化失败: {e}")

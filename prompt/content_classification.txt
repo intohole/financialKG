@@ -27,11 +27,11 @@
 
 示例输出：
 ```json
-{
+{{
   "category": "tech",
   "confidence": 0.85,
   "reasoning": "文本主要讨论人工智能技术发展",
   "supported": true,
   "is_financial_content": false
-}
+}}
 ```

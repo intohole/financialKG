@@ -82,6 +82,9 @@ class HybridStoreCore(StoreBase):
             # 初始化数据库管理器 - 创建数据表
             await self.db_manager.create_tables()
             
+            # 初始化向量索引管理器
+            await self.vector_manager.initialize()
+            
             self._initialized = True
             logger.info("HybridStore核心初始化成功")
             
@@ -102,9 +105,9 @@ class HybridStoreCore(StoreBase):
             # 关闭数据库连接
             await self.db_manager.close()
             
-            # 关闭向量存储
-            if self.vector_store:
-                await self.vector_store.close()
+            # 关闭向量存储 - close 是同步方法
+            if hasattr(self, 'vector_store') and self.vector_store:
+                self.vector_store.close()
             
             self._initialized = False
             logger.info("HybridStore核心关闭成功")
@@ -273,15 +276,15 @@ class HybridStoreCore(StoreBase):
                             entity_type: Optional[str] = None,
                             top_k: int = 10,
                             include_vector_search: bool = True,
-                            include_full_text_search: bool = True) -> List[SearchResult]:
-        """搜索实体
+                            include_full_text_search: bool = False) -> List[SearchResult]:
+        """搜索实体 - 仅使用向量搜索，提高搜索效率
         
         Args:
             query: 搜索查询
             entity_type: 实体类型过滤
             top_k: 返回结果数量
-            include_vector_search: 是否包含向量搜索
-            include_full_text_search: 是否包含全文搜索
+            include_vector_search: 是否包含向量搜索（默认启用）
+            include_full_text_search: 是否包含全文搜索（默认禁用，仅使用向量搜索）
             
         Returns:
             List[SearchResult]: 搜索结果列表
@@ -292,10 +295,15 @@ class HybridStoreCore(StoreBase):
         try:
             results = []
             
-            # 向量搜索
+            # 仅使用向量搜索，提高搜索效率
             if include_vector_search:
+                # 添加实体类型过滤到查询中
+                search_query = query
+                if entity_type:
+                    search_query = f"{query} type:{entity_type}"
+                    
                 vector_results = await self.vector_manager.search_vectors(
-                    query, "entity", top_k, 
+                    search_query, "entity", top_k, 
                     {"type": entity_type} if entity_type else None
                 )
                 
@@ -309,20 +317,6 @@ class HybridStoreCore(StoreBase):
                                 score=vector_result.get('score', 0.0),
                                 metadata=vector_result.get('metadata', {})
                             ))
-            
-            # 数据库搜索（如果启用全文搜索）
-            if include_full_text_search:
-                async with self.db_manager.get_session() as session:
-                    entity_repository = EntityRepository(session)
-                    db_results = await entity_repository.search(query, entity_type, top_k)
-                    
-                    for db_entity in db_results:
-                        entity = self.data_converter.db_entity_to_entity(
-                            db_entity, getattr(db_entity, 'vector_id', None)
-                        )
-                        # 避免重复结果
-                        if not any(r.entity and r.entity.id == entity.id for r in results):
-                            results.append(SearchResult(entity=entity, score=0.5))
             
             # 按分数排序并限制数量
             results.sort(key=lambda x: x.score, reverse=True)

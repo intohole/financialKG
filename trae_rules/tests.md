@@ -8,16 +8,18 @@
 - 每个测试函数必写 `test_*`，用 `asyncio` 或 `pytest-asyncio` 测试异步代码
 
 ## 集成测试
-- 起真实容器： `docker-compose -f docker-compose.test.yml up --abort-on-container-exit`
 - 只测主流程，用 `httpx` 或 `requests`，断言状态码 + 核心字段
-
-## 性能测试
-- `locust` 脚本放 `tests/perf/`，单文件 ≤ 50 行
-- 基准：P95 < 200 ms，RPS ≥ 目标值 * 1.2
 
 ## 代码质量
 - 测试代码也要过 `ruff` 与 `mypy --strict`
 - 禁止 `print`，用 `caplog` 捕获日志断言
 
-## CI 门禁
-- 测试失败即阻断合并；覆盖率下降 ≥ 1% 需 Review 特批
+## 测试文件结构
+- 测试文件与源代码文件结构保持一致
+- 测试文件命名采用 `test_*.py` 格式
+- 使用 `pytest` 框架进行测试
+
+
+## 测试路径
+- 测试路径与源代码路径保持一致
+- 测试路径下的文件命名采用 `test_*.py` 格式

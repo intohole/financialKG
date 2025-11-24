@@ -31,6 +31,7 @@ from app.core.prompt_parameter_builder import (
     PromptParameterBuilder,
     CompositeParameterBuilder
 )
+from app.llm.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
