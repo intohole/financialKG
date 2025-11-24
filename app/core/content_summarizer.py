@@ -68,7 +68,7 @@ class ContentSummarizer(BaseService):
             )
             
             # 解析响应
-            return self._parse_summary_response(response, text, max_length)
+            return await self._parse_summary_response(response, text, max_length)
             
         except Exception as e:
             logger.error(f"摘要生成失败: {e}")
@@ -119,7 +119,7 @@ class ContentSummarizer(BaseService):
             summaries = []
             for i, response in enumerate(responses):
                 try:
-                    summary = self._parse_summary_response(response, texts[i], max_length)
+                    summary = await self._parse_summary_response(response, texts[i], max_length)
                     summaries.append(summary)
                 except Exception as e:
                     logger.warning(f"解析单个摘要失败: {e}")
