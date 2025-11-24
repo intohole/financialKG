@@ -145,39 +145,79 @@ class ContentSummarizer(BaseService):
             ContentSummary: 解析后的摘要结果
         """
         try:
-            # 提取摘要内容
-            summary_match = self._extract_field(response, '摘要', ['摘要：', '摘要:'])
-            if not summary_match:
-                raise ValueError("无法提取摘要内容")
+            # 清理响应文本，提取JSON部分
+            json_str = self._extract_json_from_response(response)
+            if not json_str:
+                raise ValueError("无法从响应中提取JSON数据")
             
-            # 提取关键词
-            keywords_match = self._extract_field(response, '关键词', ['关键词：', '关键词:'])
-            keywords = []
-            if keywords_match:
-                keywords = [k.strip() for k in keywords_match.split('，') if k.strip()]
+            # 解析JSON数据
+            import json
+            data = json.loads(json_str)
             
-            # 提取重要性评分
-            importance_match = self._extract_field(response, '重要性', ['重要性：', '重要性:'])
-            importance_score = 5  # 默认值
-            if importance_match:
-                try:
-                    # 提取数字评分
-                    score_match = self._extract_number_from_text(importance_match)
-                    if score_match is not None:
-                        importance_score = max(1, min(10, int(score_match)))
-                except (ValueError, TypeError):
-                    pass
+            # 验证必需字段
+            if 'summary' not in data:
+                raise ValueError("JSON数据中缺少'summary'字段")
+            
+            # 提取字段
+            summary = data.get('summary', '')
+            keywords = data.get('keywords', [])
+            importance = data.get('importance', 5)
+            reasoning = data.get('reasoning', '')
+            
+            # 确保关键词是列表格式
+            if isinstance(keywords, str):
+                keywords = [k.strip() for k in keywords.split('，') if k.strip()]
+            elif not isinstance(keywords, list):
+                keywords = []
+            
+            # 确保重要性评分在有效范围内
+            if not isinstance(importance, int) or importance < 1 or importance > 5:
+                importance = 5
             
             return ContentSummary(
-                summary=summary_match,
+                summary=summary,
                 keywords=keywords,
-                importance_score=importance_score,
-                importance_reason=importance_match or ""
+                importance_score=importance,
+                importance_reason=reasoning
             )
             
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析失败: {e}")
+            raise ValueError(f"JSON解析失败: {str(e)}")
         except Exception as e:
             logger.error(f"解析摘要响应失败: {e}")
             raise ValueError(f"解析摘要响应失败: {str(e)}")
+    
+    def _extract_json_from_response(self, response: str) -> Optional[str]:
+        """
+        从响应文本中提取JSON部分
+        
+        Args:
+            response: 大模型响应文本
+            
+        Returns:
+            Optional[str]: 提取的JSON字符串，失败时返回None
+        """
+        try:
+            # 查找JSON的开始和结束位置
+            start_idx = response.find('{')
+            end_idx = response.rfind('}')
+            
+            if start_idx == -1 or end_idx == -1 or start_idx >= end_idx:
+                return None
+            
+            # 提取JSON字符串
+            json_str = response[start_idx:end_idx + 1]
+            
+            # 验证JSON格式
+            import json
+            json.loads(json_str)  # 这会抛出异常如果JSON无效
+            
+            return json_str
+            
+        except Exception as e:
+            logger.warning(f"提取JSON失败: {e}")
+            return None
     
     def _extract_field(self, text: str, field_name: str, separators: List[str]) -> Optional[str]:
         """

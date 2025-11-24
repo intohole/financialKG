@@ -20,12 +20,12 @@ logger = logging.getLogger(__name__)
 class KGCoreImplService(BaseService, KGCoreAbstractService):
     """KG核心实现服务"""
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, content_processor=None, entity_analyzer=None, content_summarizer=None, llm_service=None):
+        super().__init__(llm_service=llm_service)
         self.config = ConfigManager()
-        self.content_processor = ContentProcessor()
-        self.entity_analyzer = EntityAnalyzer()
-        self.content_summarizer = ContentSummarizer()
+        self.content_processor = content_processor or ContentProcessor(llm_service=llm_service)
+        self.entity_analyzer = entity_analyzer or EntityAnalyzer(llm_service=llm_service)
+        self.content_summarizer = content_summarizer or ContentSummarizer(llm_service=llm_service)
         self.store: Optional[HybridStoreCore] = None
         logger.info("KGCoreImplService 初始化完成")
 
@@ -57,10 +57,11 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
         if not self.store:
             raise RuntimeError("存储未初始化，请先调用initialize方法")
         
+        # 参数验证（在try块外，确保ValueError直接抛出）
+        if not content or not content.strip():
+            raise ValueError("内容不能为空")
+        
         try:
-            if not content or not content.strip():
-                raise ValueError("内容不能为空")
-            
             logger.info(f"开始处理内容，长度: {len(content)}")
             
             # 获取类别变量，通过content_processor.classify_content 获取分类
@@ -84,28 +85,30 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
                 entity_types=entity_types,
                 relation_types=relation_types
             )
-            logger.info(f"提取到 {len(extraction_result.entities)} 个实体, {len(extraction_result.relations)} 个关系")
+            logger.info(f"提取到 {len(extraction_result.knowledge_graph.entities)} 个实体, {len(extraction_result.knowledge_graph.relations)} 个关系")
             
             # 处理实体：向量查找、消歧、合并存储
-            processed_entities = await self._process_entities_with_vector_search(extraction_result.entities)
+            processed_entities = await self._process_entities_with_vector_search(extraction_result.knowledge_graph.entities)
             
             # 处理关系
-            await self._process_relations(extraction_result.relations, processed_entities)
+            await self._process_relations(extraction_result.knowledge_graph.relations, processed_entities)
             
             # 根据content_summarizer 对内容进行摘要,并存储摘要,并与实体关联
             summary = await self._process_content_summary(content, processed_entities)
             
             # 构建知识图谱
+            metadata = {
+                "content_id": content_id,
+                "content_length": len(content),
+                "extraction_timestamp": datetime.now().isoformat(),
+                "summary": summary
+            }
+            
             knowledge_graph = KnowledgeGraph(
                 entities=list(processed_entities.values()),
-                relations=extraction_result.relations,
+                relations=extraction_result.knowledge_graph.relations,
                 category=classification_result.category,
-                summary=summary,
-                metadata={
-                    "content_id": content_id,
-                    "content_length": len(content),
-                    "extraction_timestamp": datetime.now().isoformat()
-                }
+                metadata=metadata
             )
             
             logger.info("内容处理完成")
@@ -126,10 +129,15 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             处理后的实体映射（实体名称 -> 实体对象）
         """
         processed_entities = {}
+        total_entities = len(entities)
+        logger.info(f"开始处理实体列表，共 {total_entities} 个实体")
         
-        for entity in entities:
+        for i, entity in enumerate(entities):
             try:
+                logger.info(f"处理实体 {i+1}/{total_entities}: '{entity.name}' (类型: {entity.type})")
+                
                 # 根据store中存储的方法，根据向量查找，找到对应的相似向量
+                logger.debug(f"正在搜索相似实体: '{entity.name}'")
                 similar_entities = await self.store.search_entities(
                     query=entity.name,
                     entity_type=entity.type,
@@ -138,24 +146,33 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
                     include_full_text_search=False
                 )
                 
+                logger.info(f"找到 {len(similar_entities)} 个相似实体")
+                
                 if similar_entities:
                     # 获取相似向量，通过 entity_analyzer.resolve_entity_ambiguity 解析实体歧义
                     candidate_entities = [result.entity for result in similar_entities if result.entity]
+                    logger.debug(f"候选实体: {[e.name for e in candidate_entities]}")
                     
+                    logger.info(f"解析实体 '{entity.name}' 的歧义...")
                     ambiguity_result = await self.entity_analyzer.resolve_entity_ambiguity(
                         entity, candidate_entities
                     )
                     
+                    logger.info(f"歧义解析结果: 是否重复={ambiguity_result.is_duplicate}, 相似度={ambiguity_result.similarity_score}")
+                    
                     if ambiguity_result.is_duplicate and ambiguity_result.best_match:
                         # 如果有重复合并实体
                         existing_entity = ambiguity_result.best_match
-                        logger.info(f"实体 '{entity.name}' 与现有实体 '{existing_entity.name}' 重复，合并使用现有实体")
+                        logger.info(f"实体 '{entity.name}' 与现有实体 '{existing_entity.name}' 重复，合并使用现有实体 (相似度: {ambiguity_result.similarity_score})")
                         processed_entities[entity.name] = existing_entity
                         continue
+                else:
+                    logger.info(f"未找到相似实体，'{entity.name}' 是新实体")
                 
                 # 如果无重复，直接存储实体以及对应的关系
+                logger.info(f"存储新实体: '{entity.name}'")
                 stored_entity = await self.store.create_entity(entity)
-                logger.info(f"存储新实体: {stored_entity.name} (ID: {stored_entity.id})")
+                logger.info(f"成功存储实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
                 processed_entities[entity.name] = stored_entity
                 
             except Exception as e:
@@ -163,6 +180,7 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
                 # 继续处理其他实体，不中断整个流程
                 continue
         
+        logger.info(f"实体处理完成，共处理 {len(processed_entities)} 个有效实体")
         return processed_entities
 
     async def _process_relations(self, relations: List[Relation], entity_map: Dict[str, Entity]) -> None:
@@ -173,28 +191,42 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             relations: 待处理的关系列表
             entity_map: 实体名称到实体对象的映射
         """
-        for relation in relations:
+        total_relations = len(relations)
+        logger.info(f"开始处理关系列表，共 {total_relations} 个关系")
+        
+        for i, relation in enumerate(relations):
             try:
+                logger.info(f"处理关系 {i+1}/{total_relations}: {relation.subject} -> {relation.predicate} -> {relation.object}")
+                
                 # 获取主体和客体实体
                 subject_entity = entity_map.get(relation.subject)
                 object_entity = entity_map.get(relation.object)
                 
-                if not subject_entity or not object_entity:
-                    logger.warning(f"关系 '{relation.subject} -> {relation.object}' 缺少实体，跳过")
+                if not subject_entity:
+                    logger.warning(f"关系 '{relation.subject} -> {relation.object}' 缺少主体实体 '{relation.subject}'，跳过")
                     continue
+                
+                if not object_entity:
+                    logger.warning(f"关系 '{relation.subject} -> {relation.object}' 缺少客体实体 '{relation.object}'，跳过")
+                    continue
+                
+                logger.info(f"找到实体: 主体='{subject_entity.name}' (ID: {subject_entity.id}), 客体='{object_entity.name}' (ID: {object_entity.id})")
                 
                 # 更新关系中的实体ID
                 relation.subject_id = subject_entity.id
                 relation.object_id = object_entity.id
                 
+                logger.info(f"存储关系: {relation.subject} -> {relation.predicate} -> {relation.object}")
                 # 存储关系
                 stored_relation = await self.store.create_relation(relation)
-                logger.info(f"存储关系: {relation.subject} -> {relation.object} (ID: {stored_relation.id})")
+                logger.info(f"成功存储关系: {relation.subject} -> {relation.object} (ID: {stored_relation.id}, 谓词: {relation.predicate})")
                 
             except Exception as e:
                 logger.error(f"处理关系 '{relation.subject} -> {relation.object}' 失败: {e}")
                 continue
-
+        
+        logger.info(f"关系处理完成，共处理 {total_relations} 个关系")
+        
     async def _process_content_summary(self, content: str, entities: Dict[str, Entity]) -> str:
         """
         处理内容摘要：生成摘要并与实体关联
@@ -207,13 +239,17 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             生成的摘要内容
         """
         try:
+            logger.info(f"开始生成内容摘要，内容长度: {len(content)} 字符")
+            
             # 生成内容摘要
-            summary_result = await self.content_summarizer.summarize(content)
-            logger.info(f"生成摘要，长度: {len(summary_result.summary)}")
+            summary_result = await self.content_summarizer.generate_summary(content)
+            logger.info(f"生成摘要完成，长度: {len(summary_result.summary)} 字符")
             
             # 关联摘要与实体（示例：记录日志）
             entity_names = list(entities.keys())
-            logger.info(f"摘要与以下实体关联: {entity_names}")
+            logger.info(f"摘要与以下 {len(entity_names)} 个实体关联: {entity_names[:10]}")  # 只显示前10个
+            if len(entity_names) > 10:
+                logger.info(f"... 还有 {len(entity_names) - 10} 个实体")
             
             return summary_result.summary
             

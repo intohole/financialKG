@@ -86,7 +86,11 @@ class ContentProcessor(BaseService):
             
             # 自动选择提示词：如果提供了自定义类别或配置，使用 content_classification_enhanced，否则使用默认的 content_classification
             if prompt_key is None:
-                prompt_key = 'content_classification'
+                # 如果有自定义类别或配置，使用增强版分类
+                if categories or category_config:
+                    prompt_key = 'content_classification_enhanced'
+                else:
+                    prompt_key = 'content_classification'
             
             # 使用参数构建器构建提示词参数
             prompt_params = self.parameter_builder.build_parameters(

@@ -70,24 +70,24 @@ class ClassificationParameterBuilder(PromptParameterBuilder):
                         category_config: Optional[Dict[str, Dict]] = None,
                         **kwargs) -> Dict[str, Any]:
         """构建分类任务参数"""
+        # 基础内容分类只需要文本参数，类别定义在prompt模板中
         params = {'text': text}
         
-        # 处理自定义类别 - categories优先于category_config
-        if categories:
-            params['categories'] = ", ".join(categories)
-        elif category_config:
-            # 使用配置中的类别信息，包含名称和描述
-            category_info_parts = []
-            for category_key, category_data in category_config.items():
-                name = category_data.get('name', category_key)
-                description = category_data.get('description', '')
-                category_info_parts.append(f"{category_key}({name}): {description}")
-            params['categories'] = "; ".join(category_info_parts)
-        else:
-            # 默认类别配置
-            if prompt_key == 'content_classification':
-                params['categories'] = "financial(金融财经): 金融、财经、股票、证券等相关内容; technology(科技互联网): 科技、互联网、人工智能等相关内容; medical(医疗健康): 医疗、健康、药品、生物科技等相关内容; education(教育培训): 教育、培训、学术等相关内容"
-            elif prompt_key == 'content_classification_enhanced':
+        # 只有增强版分类才需要额外的类别参数
+        if prompt_key == 'content_classification_enhanced':
+            # 处理自定义类别 - categories优先于category_config
+            if categories:
+                params['categories'] = ", ".join(categories)
+            elif category_config:
+                # 使用配置中的类别信息，包含名称和描述
+                category_info_parts = []
+                for category_key, category_data in category_config.items():
+                    name = category_data.get('name', category_key)
+                    description = category_data.get('description', '')
+                    category_info_parts.append(f"{category_key}({name}): {description}")
+                params['categories'] = "; ".join(category_info_parts)
+            else:
+                # 增强版默认类别配置
                 params['categories'] = "financial(金融财经): 金融、财经、股票、证券等相关内容; technology(科技互联网): 科技、互联网、人工智能等相关内容; medical(医疗健康): 医疗、健康、药品、生物科技等相关内容; education(教育培训): 教育、培训、学术等相关内容"
         
         return params

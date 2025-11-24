@@ -67,8 +67,8 @@ class EntityAnalyzer(BaseService):
             response = await self.generate_with_prompt(
                 'entity_resolution',
                 entity_name=entity.name,
-                entity_context=f"类型: {entity.type}, 描述: {entity.description}",
-                candidate_entities='\n'.join(candidates_info)
+                context=f"类型: {entity.type}, 描述: {entity.description}",
+                candidate_descriptions='\n'.join(candidates_info)
             )
             
             # 解析响应
