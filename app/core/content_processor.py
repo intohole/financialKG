@@ -44,14 +44,15 @@ class ContentProcessor(BaseService):
     - extract_entities_and_relations: 从文本中提取实体及其相互关系
     """
     
-    def __init__(self, parameter_builder: Optional[PromptParameterBuilder] = None):
+    def __init__(self, parameter_builder: Optional[PromptParameterBuilder] = None, llm_service: Optional[LLMService] = None):
         """
         初始化内容处理器
         
         Args:
             parameter_builder: 可选的自定义参数构建器，默认为CompositeParameterBuilder
+            llm_service: 可选的自定义LLM服务，默认为None
         """
-        super().__init__()
+        super().__init__(llm_service=llm_service)
         self.parameter_builder = parameter_builder or CompositeParameterBuilder()
         logger.info(f"初始化 ContentProcessor，使用参数构建器: {self.parameter_builder.__class__.__name__}")
     

@@ -17,7 +17,7 @@ from typing import List, Dict, Any, Optional
 
 from app.vector.base import VectorSearchBase
 from app.embedding import EmbeddingService
-from app.store.exceptions import StoreError
+from app.store.store_exceptions_define import StoreError
 
 
 logger = logging.getLogger(__name__)

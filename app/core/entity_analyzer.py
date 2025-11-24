@@ -11,12 +11,18 @@ from app.core.models import (
     EntityComparisonResult,
     SimilarEntityResult
 )
+from app.llm.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
 
 class EntityAnalyzer(BaseService):
     """实体分析服务，提供实体关系判断和语义关联分析功能"""
+    
+    def __init__(self, llm_service: Optional[LLMService] = None):
+        """初始化实体分析器"""
+        super().__init__(llm_service=llm_service)
+        logger.info("初始化 EntityAnalyzer")
     
     async def resolve_entity_ambiguity(
         self, 

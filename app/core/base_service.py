@@ -30,11 +30,12 @@ class BaseService(ABC):
     3. 使用提供的工具方法处理响应
     """
     
-    def __init__(self):
+    def __init__(self, llm_service: Optional[LLMService] = None):
         """初始化基础服务"""
         self.config = ConfigManager()
         self.prompt_manager = PromptManager()
-        self.llm_service = LLMService()
+        # 如果提供了自定义LLM服务，使用它，否则创建默认的
+        self.llm_service = llm_service if llm_service else LLMService()
         logger.info(f"初始化 {self.__class__.__name__}")
     
     async def generate_with_prompt(self, prompt_key: str, **kwargs) -> str:

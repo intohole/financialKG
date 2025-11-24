@@ -5,7 +5,7 @@
 
 from typing import Optional, Dict, Any
 from app.database.models import Entity as DBEntity, Relation as DBRelation
-from app.store.base import Entity, Relation
+from app.store.store_base_abstract import Entity, Relation
 
 
 class DataConverter:

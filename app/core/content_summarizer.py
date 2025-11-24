@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 
 from app.core.base_service import BaseService
 from app.core.models import ContentSummary
+from app.llm.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,11 @@ class ContentSummarizer(BaseService):
         texts = ["文本1...", "文本2...", "文本3..."]
         summaries = await summarizer.generate_batch_summaries(texts, max_length=80)
     """
+    
+    def __init__(self, llm_service: Optional[LLMService] = None):
+        """初始化内容摘要器"""
+        super().__init__(llm_service=llm_service)
+        logger.info("初始化 ContentSummarizer")
     
     async def generate_summary(self, text: str, max_length: int = 100) -> ContentSummary:
         """
@@ -62,7 +68,7 @@ class ContentSummarizer(BaseService):
             )
             
             # 解析响应
-            return self._parse_summary_response(response)
+            return self._parse_summary_response(response, text, max_length)
             
         except Exception as e:
             logger.error(f"摘要生成失败: {e}")
@@ -111,9 +117,9 @@ class ContentSummarizer(BaseService):
             
             # 解析响应
             summaries = []
-            for response in responses:
+            for i, response in enumerate(responses):
                 try:
-                    summary = self._parse_summary_response(response)
+                    summary = self._parse_summary_response(response, texts[i], max_length)
                     summaries.append(summary)
                 except Exception as e:
                     logger.warning(f"解析单个摘要失败: {e}")

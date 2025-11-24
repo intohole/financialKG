@@ -19,10 +19,10 @@ from typing import List, Dict, Any, Optional
 
 from app.database.manager import DatabaseManager
 from app.database.repositories import EntityRepository, RelationRepository, NewsEventRepository
-from app.store.base import StoreBase, Entity, Relation, NewsEvent, SearchResult, StoreConfig
-from app.store.exceptions import StoreError, EntityNotFoundError, RelationNotFoundError
-from app.store.data_converter import DataConverter
-from app.store.vector_index_manager import VectorIndexManager
+from app.store.store_base_abstract import StoreBase, Entity, Relation, NewsEvent, SearchResult, StoreConfig
+from app.store.store_exceptions_define import StoreError, EntityNotFoundError, RelationNotFoundError
+from app.store.store_data_convert import DataConverter
+from app.store.vector_index_manage import VectorIndexManager
 from app.vector.base import VectorSearchBase
 from app.embedding import EmbeddingService
 
