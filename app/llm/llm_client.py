@@ -294,9 +294,16 @@ class LLMClient(BaseLLMService):
                 logger.error(f"生成失败 (尝试 {attempt}/{max_retries}): {e}")
                 
                 # 根据错误类型处理
-                if isinstance(e, langchain.schema.output_parser.OutputParserException):
-                    raise GenerationError(f"输出解析失败: {e}", model=self._llm_config.model)
-                elif 'rate limit' in str(e).lower() or 'too many requests' in str(e).lower():
+                try:
+                    from langchain.schema.output_parser import OutputParserException
+                    if isinstance(e, OutputParserException):
+                        raise GenerationError(f"输出解析失败: {e}", model=self._llm_config.model)
+                except ImportError:
+                    # 如果无法导入OutputParserException，使用字符串匹配
+                    if 'OutputParserException' in str(type(e)):
+                        raise GenerationError(f"输出解析失败: {e}", model=self._llm_config.model)
+                
+                if 'rate limit' in str(e).lower() or 'too many requests' in str(e).lower():
                     # 速率限制错误，尝试重试
                     retry_after = attempt * 2  # 指数退避
                     logger.warning(f"速率限制，{retry_after}秒后重试")
