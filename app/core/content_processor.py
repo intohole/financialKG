@@ -19,7 +19,6 @@ from typing import List, Optional, Dict
 
 from app.core.base_service import BaseService
 from app.core.models import (
-    ContentCategory,
     ContentClassification,
     ContentClassificationResult,
     Entity,
@@ -204,14 +203,10 @@ class ContentProcessor(BaseService):
                 raise ValueError(f"响应缺少必需字段: {required_fields}")
             
             # 解析分类结果
-            category_str = str(data.get('category', 'UNKNOWN')).upper()
-            try:
-                category = ContentCategory(category_str)
-            except ValueError:
-                category = ContentCategory.UNKNOWN
+            category_str = str(data.get('category', 'UNKNOWN')).lower()
             
             return ContentClassificationResult(
-                category=category,
+                category=category_str,
                 confidence=float(data.get('confidence', 0.0)),
                 reasoning=str(data.get('reasoning', '')),
                 is_financial_content=bool(data.get('is_financial_content', False)),
@@ -276,7 +271,6 @@ class ContentProcessor(BaseService):
             
             # 创建结果对象
             content_classification = ContentClassification(
-                is_financial_content=bool(data.get('is_financial_content', False)),
                 confidence=float(data.get('confidence', 0.0)),
                 category=data.get('category'),
                 reasoning=data.get('reasoning')

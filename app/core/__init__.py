@@ -5,7 +5,6 @@ from app.core.content_processor import ContentProcessor
 from app.core.entity_analyzer import EntityAnalyzer
 from app.core.content_summarizer import ContentSummarizer
 from app.core.models import (
-    ContentCategory,
     ContentClassificationResult,
     ContentSummary,
     Entity,
@@ -23,7 +22,6 @@ __all__ = [
     'ContentSummarizer',
     
     # 数据模型
-    'ContentCategory',
     'ContentClassificationResult',
     'ContentSummary',
     'Entity',

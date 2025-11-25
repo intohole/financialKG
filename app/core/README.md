@@ -340,7 +340,6 @@ from app.core import (
     EntityAnalyzer,            # 实体分析器
     
     # 数据模型
-    ContentCategory,           # 内容类别枚举
     ContentClassificationResult, # 内容分类结果
     ContentSummary,            # 内容摘要结果
     Entity,                    # 实体模型

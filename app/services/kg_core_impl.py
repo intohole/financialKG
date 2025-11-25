@@ -9,7 +9,7 @@ from app.core.base_service import BaseService
 from app.core.content_summarizer import ContentSummarizer
 from app.core.content_processor import ContentProcessor
 from app.core.entity_analyzer import EntityAnalyzer
-from app.core.models import Entity, Relation, ContentClassification, ContentCategory, KnowledgeGraph
+from app.core.models import Entity, Relation, KnowledgeGraph
 from app.store import HybridStoreCore
 from app.config.config_manager import ConfigManager
 from app.services.kg_core_abstract import KGCoreAbstractService
@@ -72,7 +72,7 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             logger.warning(f"无法从embedding服务获取维度: {e}, 使用默认值")
             return 1536  # 默认维度
     
-    def _init_store(self):
+    async def _init_store(self):
         """自动初始化store实例"""
         try:
             logger.info("开始自动初始化store...")
@@ -105,7 +105,7 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             )
             
             # 5. 初始化store
-            self.store.initialize()
+            await self.store.initialize()
             logger.info("store自动初始化完成")
             
             # 6. 获取embedding维度（如果之前未设置）
@@ -139,7 +139,7 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             logger.info("使用提供的store实例")
         elif self.store is None:
             logger.info("store未初始化，进行自动初始化...")
-            self._init_store()
+            await self._init_store()
         
         if self.store is None:
             raise RuntimeError("store未初始化，无法继续")
@@ -189,7 +189,11 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             logger.info(f"内容分类结果: {classification_result.category}, 置信度: {classification_result.confidence}")
             
             # 根据获取到的分类，使用self.content_processor.extract_entities_and_relations 获取实体和实体关系
-            category_name = classification_result.category.value if hasattr(classification_result.category, 'value') else str(classification_result.category)
+            if classification_result and classification_result.category:
+                category_name = classification_result.category
+                logger.info(f"使用分类: {category_name}")
+            else:
+                raise ValueError("无法获取分类结果")
             category_info = category_config.get(category_name, {})
             
             entity_types = category_info.get('entity_types', kg_config.entity_types)
@@ -264,22 +268,29 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
                 logger.info(f"找到 {len(similar_entities)} 个相似实体")
                 
                 if similar_entities:
-                    # 获取相似向量，通过 entity_analyzer.resolve_entity_ambiguity 解析实体歧义
-                    candidate_entities = [result.entity for result in similar_entities if result.entity]
+                    # 增加完全匹配逻辑
+                    for result in similar_entities:
+                        if result.entity and result.entity.name == entity.name:
+                            processed_entities[entity.name] = result.entity
+                            logger.info(f"已找到匹配实体: '{result.entity.name}'")
+                            return processed_entities
+
+                    candidate_entities = [result.entity for result in similar_entities if result.entity and result.entity.name != entity.name]
                     logger.debug(f"候选实体: {[e.name for e in candidate_entities]}")
-                    
+
+
                     logger.info(f"解析实体 '{entity.name}' 的歧义...")
                     ambiguity_result = await self.entity_analyzer.resolve_entity_ambiguity(
                         entity, candidate_entities
                     )
                     
-                    logger.info(f"歧义解析结果: 是否重复={ambiguity_result.is_duplicate}, 相似度={ambiguity_result.similarity_score}")
+                    logger.info(f"歧义解析结果: 选中实体={ambiguity_result.selected_entity.name if ambiguity_result.selected_entity else '无'}, 置信度={ambiguity_result.confidence}")
                     
-                    if ambiguity_result.is_duplicate and ambiguity_result.best_match:
-                        # 如果有重复合并实体
-                        existing_entity = ambiguity_result.best_match
-                        logger.info(f"实体 '{entity.name}' 与现有实体 '{existing_entity.name}' 重复，合并使用现有实体 (相似度: {ambiguity_result.similarity_score})")
-                        processed_entities[entity.name] = existing_entity
+                    if ambiguity_result.selected_entity:
+                        # 如果有选中的实体，使用选中的实体
+                        selected_entity = ambiguity_result.selected_entity
+                        logger.info(f"实体 '{entity.name}' 与选中实体 '{selected_entity.name}' 匹配 (置信度: {ambiguity_result.confidence})")
+                        processed_entities[entity.name] = selected_entity
                         continue
                 else:
                     logger.info(f"未找到相似实体，'{entity.name}' 是新实体")

@@ -15,22 +15,14 @@
 使用示例：
     >>> entity = Entity(name="苹果公司", type="公司", description="科技公司")
     >>> relation = Relation(subject="苹果公司", predicate="生产", object="iPhone")
-    >>> result = ContentClassification(is_financial_content=True, confidence=0.95)
+    >>> result = ContentClassification( confidence=0.95)
 """
 
 from typing import List, Dict, Optional, Any, Set
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
 
 
-class ContentCategory(str, Enum):
-    """内容类别枚举"""
-    FINANCIAL = "financial"
-    TECHNOLOGY = "technology"
-    MEDICAL = "medical"
-    EDUCATION = "education"
-    UNKNOWN = "unknown"
 
 
 @dataclass
@@ -178,7 +170,6 @@ class ContentClassification:
     表示内容分类的结果，包含分类信息、置信度和推理过程。
     
     属性：
-        is_financial_content (bool): 是否为金融内容
         confidence (float): 分类置信度，范围0-1
         category (Optional[str]): 内容类别
         reasoning (Optional[str]): 分类推理过程
@@ -186,14 +177,12 @@ class ContentClassification:
     
     使用示例：
         >>> classification = ContentClassification(
-        ...     is_financial_content=True,
         ...     confidence=0.95,
         ...     category="financial",
         ...     reasoning="文本包含股票、投资等金融关键词"
         ... )
         >>> is_supported = classification.is_category_supported("financial")
     """
-    is_financial_content: bool
     confidence: float
     category: Optional[str] = None
     reasoning: Optional[str] = None
@@ -210,7 +199,6 @@ class ContentClassification:
     def to_dict(self) -> Dict[str, Any]:
         """将内容分类结果转换为字典"""
         return {
-            "is_financial_content": self.is_financial_content,
             "confidence": self.confidence,
             "category": self.category,
             "reasoning": self.reasoning,
@@ -221,7 +209,7 @@ class ContentClassification:
 @dataclass
 class ContentClassificationResult:
     """内容分类结果（新版本）"""
-    category: ContentCategory
+    category: str
     confidence: float
     reasoning: Optional[str] = None
     is_financial_content: bool = False
@@ -230,7 +218,7 @@ class ContentClassificationResult:
     def to_dict(self) -> Dict[str, Any]:
         """将内容分类结果转换为字典"""
         return {
-            "category": self.category.value,
+            "category": self.category,
             "confidence": self.confidence,
             "reasoning": self.reasoning,
             "is_financial_content": self.is_financial_content,
