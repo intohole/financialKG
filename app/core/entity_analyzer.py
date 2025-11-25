@@ -12,6 +12,7 @@ from app.core.models import (
     SimilarEntityResult
 )
 from app.llm.llm_service import LLMService
+from app.utils.json_extractor import extract_json_robust
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +202,7 @@ class EntityAnalyzer(BaseService):
         response: str, 
         candidate_entities: List[Entity]
     ) -> EntityResolutionResult:
-        """解析实体消歧响应
+        """解析实体消歧响应（使用json_extractor模块）
         
         Args:
             response: 大模型响应文本
@@ -215,7 +216,7 @@ class EntityAnalyzer(BaseService):
         """
         try:
             # 提取JSON数据
-            data = self.extract_json_from_response(response)
+            data = extract_json_robust(response)
             if not data:
                 raise ValueError("无法从响应中提取有效数据")
             
@@ -258,7 +259,7 @@ class EntityAnalyzer(BaseService):
         self, 
         response: str
     ) -> List[EntityComparisonResult]:
-        """解析多实体比较响应
+        """解析多实体比较响应（使用json_extractor模块）
         
         Args:
             response: 大模型响应文本
@@ -270,38 +271,51 @@ class EntityAnalyzer(BaseService):
             ValueError: 当响应格式无效时
         """
         try:
-            # 提取JSON数组数据
-            results_data = self.extract_json_array_from_response(response)
-            if not results_data:
-                raise ValueError("无法从响应中提取有效数据")
+            # 使用统一的JSON提取方法
+            result = extract_json_robust(response)
+            
+            if not result:
+                logger.warning("未能从响应中提取有效的JSON数据")
+                return []
+            
+            # 处理数组或包含数组的对象
+            if isinstance(result, list):
+                data = result
+            elif isinstance(result, dict) and 'items' in result:
+                data = result['items']
+            elif isinstance(result, dict) and 'comparisons' in result:
+                data = result['comparisons']
+            else:
+                logger.warning(f"提取的结果不是数组类型: {type(result)}")
+                return []
             
             comparisons = []
-            for data in results_data:
+            for item_data in data:
                 try:
                     # 验证必需字段
                     required_fields = ['entity1', 'entity2', 'similarity', 'is_same_entity', 'reasoning']
-                    if not self.validate_response_data(data, required_fields):
+                    if not self.validate_response_data(item_data, required_fields):
                         continue
                     
                     # 构建实体对象
                     entity1 = Entity(
-                        name=data.get('entity1', ''),
-                        type=data.get('entity1_type', ''),
-                        description=data.get('entity1_description', '')
+                        name=item_data.get('entity1', ''),
+                        type=item_data.get('entity1_type', ''),
+                        description=item_data.get('entity1_description', '')
                     )
                     
                     entity2 = Entity(
-                        name=data.get('entity2', ''),
-                        type=data.get('entity2_type', ''),
-                        description=data.get('entity2_description', '')
+                        name=item_data.get('entity2', ''),
+                        type=item_data.get('entity2_type', ''),
+                        description=item_data.get('entity2_description', '')
                     )
                     
                     comparisons.append(EntityComparisonResult(
                         entity1=entity1,
                         entity2=entity2,
-                        similarity_score=data.get('similarity', 0.0),
-                        is_same_entity=data.get('is_same_entity', False),
-                        reasoning=data.get('reasoning', '')
+                        similarity_score=item_data.get('similarity', 0.0),
+                        is_same_entity=item_data.get('is_same_entity', False),
+                        reasoning=item_data.get('reasoning', '')
                     ))
                     
                 except Exception as e:

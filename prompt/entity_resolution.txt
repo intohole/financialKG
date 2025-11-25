@@ -23,9 +23,9 @@
 
 示例输出：
 ```json
-{
+{{
   "selected_entity": "苹果公司（Apple Inc.）是美国一家科技公司",
   "confidence": 0.92,
   "reasoning": "上下文提到iPhone和Mac产品，与苹果公司的业务高度匹配"
-}
+}}
 ```

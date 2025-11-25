@@ -190,7 +190,7 @@ class ContentSummarizer(BaseService):
     
     def _extract_json_from_response(self, response: str) -> Optional[str]:
         """
-        从响应文本中提取JSON部分
+        从响应文本中提取JSON部分（已废弃，使用json_extractor模块）
         
         Args:
             response: 大模型响应文本
@@ -198,23 +198,14 @@ class ContentSummarizer(BaseService):
         Returns:
             Optional[str]: 提取的JSON字符串，失败时返回None
         """
+        logger.warning("_extract_json_from_response 方法已废弃，使用 extract_json_robust 替代")
         try:
-            # 查找JSON的开始和结束位置
-            start_idx = response.find('{')
-            end_idx = response.rfind('}')
-            
-            if start_idx == -1 or end_idx == -1 or start_idx >= end_idx:
-                return None
-            
-            # 提取JSON字符串
-            json_str = response[start_idx:end_idx + 1]
-            
-            # 验证JSON格式
-            import json
-            json.loads(json_str)  # 这会抛出异常如果JSON无效
-            
-            return json_str
-            
+            from app.utils.json_extractor import extract_json_robust
+            result = extract_json_robust(response)
+            if result:
+                import json
+                return json.dumps(result)
+            return None
         except Exception as e:
             logger.warning(f"提取JSON失败: {e}")
             return None

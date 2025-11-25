@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Union
 from app.config.config_manager import ConfigManager
 from app.llm.prompt_manager import PromptManager
 from app.llm.llm_service import LLMService
+from app.utils.json_extractor import extract_json_robust
 
 logger = logging.getLogger(__name__)
 
@@ -82,85 +83,33 @@ class BaseService(ABC):
             raise RuntimeError(f"LLM调用失败: {str(e)}")
     
     def extract_json_from_response(self, response: str) -> Optional[Dict[str, Any]]:
-        """
-        从响应文本中提取JSON对象
-        
-        Args:
-            response: 大模型响应文本
-            
-        Returns:
-            提取的JSON对象，如果提取失败返回None
-            
-        提取策略：
-        1. 查找```json代码块
-        2. 查找{}包围的JSON对象
-        3. 返回第一个有效的JSON对象
-        """
-        if not response:
-            return None
-        
-        # 尝试提取代码块中的JSON
-        json_pattern = r'```json\s*([\s\S]*?)\s*```'
-        matches = re.findall(json_pattern, response, re.IGNORECASE)
-        
-        for match in matches:
-            try:
-                return json.loads(match.strip())
-            except json.JSONDecodeError:
-                continue
-        
-        # 尝试直接提取JSON对象
-        json_pattern = r'\{[\s\S]*?\}'
-        matches = re.findall(json_pattern, response)
-        
-        for match in matches:
-            try:
-                return json.loads(match)
-            except json.JSONDecodeError:
-                continue
-        
-        logger.warning("未能从响应中提取有效的JSON")
-        return None
+        """从LLM响应中提取JSON对象 - 智能提取算法（已废弃，使用json_extractor模块）"""
+        logger.warning("extract_json_from_response 方法已废弃，使用 extract_json_robust 替代")
+        return extract_json_robust(response)
     
     def extract_json_array_from_response(self, response: str) -> Optional[List[Dict[str, Any]]]:
         """
-        从响应文本中提取JSON数组
+        从LLM响应中提取JSON数组（已废弃，使用json_extractor模块）
         
         Args:
-            response: 大模型响应文本
+            response: LLM响应文本
             
         Returns:
-            提取的JSON数组，如果提取失败返回None
+            Optional[List[Dict[str, Any]]]: 提取的JSON数组，失败时返回None
         """
-        if not response:
+        logger.warning("extract_json_array_from_response 方法已废弃，使用 extract_json_robust 替代")
+        try:
+            result = extract_json_robust(response)
+            if isinstance(result, list):
+                return result
+            elif isinstance(result, dict) and 'items' in result:
+                return result['items']
+            else:
+                logger.warning(f"提取的结果不是数组类型: {type(result)}")
+                return None
+        except Exception as e:
+            logger.error(f"提取JSON数组失败: {e}")
             return None
-        
-        # 尝试提取代码块中的JSON数组
-        json_pattern = r'```json\s*([\s\S]*?)\s*```'
-        matches = re.findall(json_pattern, response, re.IGNORECASE)
-        
-        for match in matches:
-            try:
-                parsed = json.loads(match.strip())
-                if isinstance(parsed, list):
-                    return parsed
-            except json.JSONDecodeError:
-                continue
-        
-        # 尝试直接提取JSON数组
-        json_pattern = r'\[[\s\S]*?\]'
-        matches = re.findall(json_pattern, response)
-        
-        for match in matches:
-            try:
-                parsed = json.loads(match)
-                if isinstance(parsed, list):
-                    return parsed
-            except json.JSONDecodeError:
-                continue
-        
-        logger.warning("未能从响应中提取有效的JSON数组")
-        return None
     
     def validate_response_data(self, data: Any, required_fields: List[str]) -> bool:
         """

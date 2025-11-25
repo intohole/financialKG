@@ -13,6 +13,10 @@ from app.core.models import Entity, Relation, ContentClassification, ContentCate
 from app.store import HybridStoreCore
 from app.config.config_manager import ConfigManager
 from app.services.kg_core_abstract import KGCoreAbstractService
+from app.database.manager import DatabaseManager, init_database
+from app.database.core import DatabaseConfig
+from app.vector.vector_service import VectorSearchService
+from app.embedding import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
@@ -20,24 +24,135 @@ logger = logging.getLogger(__name__)
 class KGCoreImplService(BaseService, KGCoreAbstractService):
     """KG核心实现服务"""
 
-    def __init__(self, content_processor=None, entity_analyzer=None, content_summarizer=None, llm_service=None):
+    def __init__(self, content_processor=None, entity_analyzer=None, content_summarizer=None, llm_service=None, embedding_dimension: Optional[int] = None, auto_init_store: bool = True):
         super().__init__(llm_service=llm_service)
         self.config = ConfigManager()
         self.content_processor = content_processor or ContentProcessor(llm_service=llm_service)
         self.entity_analyzer = entity_analyzer or EntityAnalyzer(llm_service=llm_service)
         self.content_summarizer = content_summarizer or ContentSummarizer(llm_service=llm_service)
         self.store: Optional[HybridStoreCore] = None
+        
+        # 初始化embedding维度：优先使用传入参数，其次从配置获取
+        self._embedding_dimension = embedding_dimension or self._get_embedding_dimension_from_config()
+        
+        # 自动初始化store
+        if auto_init_store:
+            self._init_store()
+                
         logger.info("KGCoreImplService 初始化完成")
+    
+    def _get_embedding_dimension_from_config(self) -> Optional[int]:
+        """从配置获取embedding维度"""
+        embedding_config = self.config.get_embedding_config()
+        vector_config = self.config.get_vector_search_config()
+        
+        # 优先使用embedding配置的维度，其次使用向量搜索配置的维度
+        dimension = getattr(embedding_config, 'dimension', None) or getattr(vector_config, 'dimension', None)
+        
+        if dimension:
+            logger.info(f"从配置获取embedding维度: {dimension}")
+        else:
+            logger.info("未找到embedding维度配置")
+        
+        return dimension
+    
+    async def _get_embedding_dimension_from_service(self) -> int:
+        """从embedding服务获取维度"""
+        try:
+            if hasattr(self.store, 'embedding_service') and self.store.embedding_service:
+                # 通过实际生成测试向量来获取维度
+                test_embedding = await self.store.embedding_service.embed_text("测试")
+                dimension = len(test_embedding)
+                logger.info(f"成功从embedding服务获取维度: {dimension}")
+                return dimension
+            else:
+                logger.warning("未找到embedding服务，使用默认维度")
+                return 1536  # 默认维度
+        except Exception as e:
+            logger.warning(f"无法从embedding服务获取维度: {e}, 使用默认值")
+            return 1536  # 默认维度
+    
+    def _init_store(self):
+        """自动初始化store实例"""
+        try:
+            logger.info("开始自动初始化store...")
+            
+            # 1. 初始化数据库管理器
+            db_config_obj = self.config.get_database_config()
+            db_config = DatabaseConfig(
+                database_url=db_config_obj.url,
+                echo=db_config_obj.echo,
+                pool_pre_ping=db_config_obj.pool_pre_ping,
+                pool_recycle=db_config_obj.pool_recycle
+            )
+            db_manager = init_database(db_config)
+            logger.info("数据库管理器初始化完成")
+            
+            # 2. 初始化向量搜索服务
+            vector_service = VectorSearchService()
+            vector_store = vector_service.get_vector_search()
+            logger.info("向量搜索服务初始化完成")
+            
+            # 3. 初始化embedding服务
+            embedding_service = EmbeddingService()
+            logger.info("embedding服务初始化完成")
+            
+            # 4. 创建store实例
+            self.store = HybridStoreCore(
+                db_manager=db_manager,
+                vector_store=vector_store,
+                embedding_service=embedding_service
+            )
+            
+            # 5. 初始化store
+            self.store.initialize()
+            logger.info("store自动初始化完成")
+            
+            # 6. 获取embedding维度（如果之前未设置）
+            if self._embedding_dimension is None:
+                self._embedding_dimension = 1536  # 默认维度
+                logger.info(f"使用默认embedding维度: {self._embedding_dimension}")
+            
+        except Exception as e:
+            logger.error(f"store自动初始化失败: {e}")
+            raise RuntimeError(f"store自动初始化失败: {e}")
 
-    async def initialize(self, store: HybridStoreCore) -> None:
+    @property
+    def embedding_dimension(self) -> Optional[int]:
+        """
+        获取embedding维度
+        
+        Returns:
+            Optional[int]: embedding维度，如果未指定则返回None
+        """
+        return self._embedding_dimension
+
+    async def initialize(self, store: Optional[HybridStoreCore] = None) -> None:
         """
         初始化服务，设置存储实例
         
         Args:
-            store: 混合存储实例
+            store: 可选的store实例，如果不提供则使用自动初始化的store
         """
-        self.store = store
+        if store is not None:
+            self.store = store
+            logger.info("使用提供的store实例")
+        elif self.store is None:
+            logger.info("store未初始化，进行自动初始化...")
+            self._init_store()
+        
+        if self.store is None:
+            raise RuntimeError("store未初始化，无法继续")
+        
         logger.info("KGCoreImplService 存储初始化完成")
+        
+        # 记录当前使用的embedding维度信息
+        if self._embedding_dimension:
+            logger.info(f"使用embedding维度: {self._embedding_dimension}")
+        else:
+            # 如果仍未获取到维度，尝试从store的embedding服务获取
+            self._embedding_dimension = await self._get_embedding_dimension_from_service()
+            logger.info(f"从embedding服务获取维度: {self._embedding_dimension}")
 
     async def process_content(self, content: str, content_id: Optional[str] = None) -> KnowledgeGraph:
         """
@@ -325,7 +440,7 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
 
     async def parse_llm_response(self, response: str) -> Any:
         """
-        解析LLM响应
+        解析LLM响应（已废弃 - 未在代码中使用）
         
         Args:
             response: 大模型响应文本
@@ -333,7 +448,7 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
         Returns:
             解析后的响应数据
         """
-        # 直接返回响应文本，或根据需要进行解析
+        # 此方法保留用于向后兼容，但当前未在代码中使用
         return response
 
 

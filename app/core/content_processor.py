@@ -32,6 +32,7 @@ from app.core.prompt_parameter_builder import (
     CompositeParameterBuilder
 )
 from app.llm.llm_service import LLMService
+from app.utils.json_extractor import extract_json_robust
 
 logger = logging.getLogger(__name__)
 
@@ -110,18 +111,23 @@ class ContentProcessor(BaseService):
             logger.error(f"内容分类失败: {e}")
             raise RuntimeError(f"内容分类失败: {str(e)}")
     
-    async def extract_entities_and_relations(self, text: str, 
+    async def extract_entities_and_relations(self, 
+                                           text: str,
                                            entity_types: Optional[List[str]] = None,
                                            relation_types: Optional[List[str]] = None,
-                                           prompt_key: Optional[str] = None) -> KnowledgeExtractionResult:
+                                           prompt_key: Optional[str] = None,
+                                           category_config: Optional[Dict[str, Dict]] = None,
+                                           current_category: str = 'financial') -> KnowledgeExtractionResult:
         """
-        从文本中提取实体及其相互关系
+        从文本中提取实体及其相互关系 - 统一版本
         
         Args:
             text: 待提取的文本内容
             entity_types: 可选的实体类型列表，如不提供则使用默认类型
             relation_types: 可选的关系类型列表，如不提供则使用默认类型
-            prompt_key: 使用的prompt键名，默认为'entity_relation_extraction'，可自定义
+            prompt_key: 使用的prompt键名，默认为'entity_relation_extraction_unified'
+            category_config: 类别配置字典，用于动态实体和关系类型
+            current_category: 当前类别，用于选择对应的配置
             
         Returns:
             KnowledgeExtractionResult: 实体关系提取结果，包含实体列表和关系列表
@@ -137,161 +143,145 @@ class ContentProcessor(BaseService):
         try:
             logger.info(f"开始实体关系提取，文本长度: {len(text)}")
             
-            # 自动选择提示词：默认使用 entity_relation_extraction，除非明确指定其他类型
+            # 自动选择提示词：默认使用统一版本，除非明确指定其他类型
             if prompt_key is None:
-                prompt_key = 'entity_relation_extraction'
+                prompt_key = 'entity_relation_extraction_unified'
+            
+            # 记录参数构建的详细信息，便于问题排查
+            logger.info(f"实体关系提取参数 - prompt_key: {prompt_key}, "
+                       f"entity_types: {entity_types}, relation_types: {relation_types}, "
+                       f"category_config: {bool(category_config)}, current_category: {current_category}")
             
             # 使用参数构建器构建提示词参数
             prompt_params = self.parameter_builder.build_parameters(
                 text=text,
                 prompt_key=prompt_key,
                 entity_types=entity_types,
-                relation_types=relation_types
+                relation_types=relation_types,
+                category_config=category_config,
+                current_category=current_category
             )
+            
+            logger.info(f"构建的提示词参数 - entity_types: {prompt_params.get('entity_types', 'N/A')}, "
+                       f"relation_types: {prompt_params.get('relation_types', 'N/A')}")
             
             # 使用大模型进行实体关系提取
             response = await self.generate_with_prompt(prompt_key, **prompt_params)
             
             # 解析响应
-            return self._parse_extraction_response(response, text)
+            result = self._parse_extraction_response(response, text)
+            
+            logger.info(f"实体关系提取完成 - 实体数量: {len(result.knowledge_graph.entities)}, "
+                       f"关系数量: {len(result.knowledge_graph.relations)}")
+            
+            return result
             
         except Exception as e:
-            logger.error(f"实体关系提取失败: {e}")
+            logger.error(f"实体关系提取失败: {e}", exc_info=True)
+            
+            # 添加详细的错误追踪信息
+            logger.error("实体关系提取失败详情:")
+            logger.error(f"- prompt_key: {prompt_key}")
+            logger.error(f"- 文本长度: {len(text) if text else 0}")
+            logger.error(f"- entity_types: {entity_types}")
+            logger.error(f"- relation_types: {relation_types}")
+            logger.error(f"- category_config: {bool(category_config)}")
+            logger.error(f"- current_category: {current_category}")
+            
             raise RuntimeError(f"实体关系提取失败: {str(e)}")
     
     def _parse_classification_response(self, response: str, original_text: str = "") -> ContentClassificationResult:
-        """
-        解析内容分类响应
-        
-        Args:
-            response: 大模型响应文本
-            original_text: 原始输入文本（可选）
-            
-        Returns:
-            ContentClassificationResult: 解析后的分类结果
-            
-        Raises:
-            ValueError: 当响应格式无效时
-        """
+        """统一JSON格式解析分类响应（使用json_extractor模块）"""
         try:
-            # 首先尝试提取JSON数据
-            data = self.extract_json_from_response(response)
-            if data:
-                # JSON格式解析
-                required_fields = ['category', 'confidence', 'reasoning']
-                if not self.validate_response_data(data, required_fields):
-                    raise ValueError("响应   缺少必需字段")
-                
-                # 解析分类结果
-                category_str = data.get('category', 'UNKNOWN')
-                try:
-                    category = ContentCategory(category_str)
-                except ValueError:
-                    category = ContentCategory.UNKNOWN
-                
-                return ContentClassificationResult(
-                    category=category,
-                    confidence=data.get('confidence', 0.0),
-                    reasoning=data.get('reasoning', ''),
-                    is_financial_content=data.get('is_financial_content', False),
-                    supported=data.get('supported', True)
-                )
+            # 提取JSON数据
+            data = extract_json_robust(response)
+            if not data:
+                raise ValueError("无法从响应中提取有效JSON数据")
             
-            # 如果不是JSON格式，抛出异常（现在所有prompt都要求JSON格式）
-            raise ValueError("响应格式不是有效的JSON格式")
+            # 验证必需字段
+            required_fields = ['category', 'confidence']
+            if not self.validate_response_data(data, required_fields):
+                raise ValueError(f"响应缺少必需字段: {required_fields}")
+            
+            # 解析分类结果
+            category_str = str(data.get('category', 'UNKNOWN')).upper()
+            try:
+                category = ContentCategory(category_str)
+            except ValueError:
+                category = ContentCategory.UNKNOWN
+            
+            return ContentClassificationResult(
+                category=category,
+                confidence=float(data.get('confidence', 0.0)),
+                reasoning=str(data.get('reasoning', '')),
+                is_financial_content=bool(data.get('is_financial_content', False)),
+                supported=bool(data.get('supported', True))
+            )
             
         except Exception as e:
             logger.error(f"解析分类响应失败: {e}")
             raise ValueError(f"解析分类响应失败: {str(e)}")
     
     def _parse_text_classification_response(self, response: str, original_text: str = "") -> ContentClassificationResult:
-        """
-        解析文本格式的分类响应（已废弃，保留方法签名用于兼容性）
-        
-        Args:
-            response: 大模型响应文本
-            original_text: 原始输入文本（可选）
-            
-        Returns:
-            ContentClassificationResult: 解析后的分类结果
-            
-        Raises:
-            ValueError: 当响应格式无效时（现在总是抛出异常）
-        """
-        # 现在所有prompt都要求JSON格式，文本解析已废弃
-        raise ValueError("文本格式解析已废弃，请使用JSON格式响应")
+        """已废弃 - 统一使用JSON格式解析"""
+        raise ValueError("文本格式解析已废弃，所有响应必须使用JSON格式")
     
     def _parse_extraction_response(self, response: str, original_text: str = "") -> KnowledgeExtractionResult:
-        """
-        解析实体关系提取响应
-        
-        Args:
-            response: 大模型响应文本
-            original_text: 原始输入文本（可选）
-            
-        Returns:
-            KnowledgeExtractionResult: 解析后的提取结果
-            
-        Raises:
-            ValueError: 当响应格式无效时
-        """
+        """统一JSON格式解析实体关系提取响应（使用json_extractor模块）"""
         try:
             # 提取JSON数据
-            data = self.extract_json_from_response(response)
+            data = extract_json_robust(response)
             if not data:
-                raise ValueError("无法从响应中提取有效数据")
+                raise ValueError("无法从响应中提取有效JSON数据")
             
             # 验证必需字段
             required_fields = ['is_financial_content', 'confidence']
             if not self.validate_response_data(data, required_fields):
-                raise ValueError("响应缺少必需字段")
+                raise ValueError(f"响应缺少必需字段: {required_fields}")
             
             # 解析实体列表
             entities = []
-            entities_data = data.get('entities', [])
-            for entity_data in entities_data:
+            for entity_data in data.get('entities', []):
                 try:
                     entity = Entity(
-                        name=entity_data.get('name', ''),
-                        type=entity_data.get('type', ''),
-                        description=entity_data.get('description', '')
+                        name=str(entity_data.get('name', '')),
+                        type=str(entity_data.get('type', '')),
+                        description=str(entity_data.get('description', ''))
                     )
-                    entities.append(entity)
+                    if entity.name:  # 只添加非空实体
+                        entities.append(entity)
                 except Exception as e:
                     logger.warning(f"解析实体失败: {e}")
-                    continue
             
             # 解析关系列表
             relations = []
-            relations_data = data.get('relations', [])
-            for relation_data in relations_data:
+            for relation_data in data.get('relations', []):
                 try:
                     # 兼容不同的字段命名格式
-                    subject = relation_data.get('subject', relation_data.get('source', ''))
-                    predicate = relation_data.get('predicate', relation_data.get('relation_type', ''))
-                    object_entity = relation_data.get('object', relation_data.get('target', ''))
+                    subject = str(relation_data.get('subject', relation_data.get('source', '')))
+                    predicate = str(relation_data.get('predicate', relation_data.get('relation_type', '')))
+                    object_entity = str(relation_data.get('object', relation_data.get('target', '')))
                     
-                    relation = Relation(
-                        subject=subject,
-                        predicate=predicate,
-                        object=object_entity,
-                        description=relation_data.get('description', ''),
-                        confidence=relation_data.get('confidence', 0.0)
-                    )
-                    relations.append(relation)
+                    if subject and predicate and object_entity:  # 只添加完整关系
+                        relation = Relation(
+                            subject=subject,
+                            predicate=predicate,
+                            object=object_entity,
+                            description=str(relation_data.get('description', '')),
+                            confidence=float(relation_data.get('confidence', 0.0))
+                        )
+                        relations.append(relation)
                 except Exception as e:
                     logger.warning(f"解析关系失败: {e}")
-                    continue
             
-            # 创建内容分类结果
+            # 创建结果对象
             content_classification = ContentClassification(
-                is_financial_content=data.get('is_financial_content', False),
-                confidence=data.get('confidence', 0.0),
+                is_financial_content=bool(data.get('is_financial_content', False)),
+                confidence=float(data.get('confidence', 0.0)),
                 category=data.get('category'),
                 reasoning=data.get('reasoning')
             )
             
-            # 创建知识图谱
             knowledge_graph = KnowledgeGraph(
                 entities=entities,
                 relations=relations,

@@ -8,6 +8,52 @@ from typing import Dict, Any, Optional, List
 import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+
+class ParameterBuilderLogger:
+    """参数构建器日志工具 - 用于详细记录参数构建过程"""
+    
+    @staticmethod
+    def log_parameter_building(
+        prompt_key: str,
+        text_length: int,
+        entity_types: Optional[List[str]],
+        relation_types: Optional[List[str]],
+        category_config: Optional[Dict[str, Dict]],
+        current_category: str,
+        final_params: Dict[str, Any]
+    ) -> None:
+        """记录参数构建的完整过程"""
+        logger.info("=" * 60)
+        logger.info(f"参数构建详情 - prompt_key: {prompt_key}")
+        logger.info(f"文本长度: {text_length}")
+        logger.info(f"当前类别: {current_category}")
+        
+        # 记录实体类型决策过程
+        if entity_types is not None:
+            logger.info(f"✓ 使用用户指定的实体类型: {entity_types}")
+        elif category_config and current_category in category_config:
+            category_data = category_config[current_category]
+            config_entity_types = category_data.get('entity_types', [])
+            logger.info(f"✓ 使用类别配置中的实体类型: {current_category} -> {config_entity_types}")
+        else:
+            logger.info(f"✓ 使用默认实体类型: {EntityRelationParameterBuilder.DEFAULT_ENTITY_TYPES}")
+        
+        # 记录关系类型决策过程
+        if relation_types is not None:
+            logger.info(f"✓ 使用用户指定的关系类型: {relation_types}")
+        elif category_config and current_category in category_config:
+            category_data = category_config[current_category]
+            config_relation_types = category_data.get('relation_types', [])
+            logger.info(f"✓ 使用类别配置中的关系类型: {current_category} -> {config_relation_types}")
+        else:
+            logger.info(f"✓ 使用默认关系类型: {EntityRelationParameterBuilder.DEFAULT_RELATION_TYPES}")
+        
+        # 记录最终参数
+        logger.info(f"最终实体类型: {final_params.get('entity_types', 'N/A')}")
+        logger.info(f"最终关系类型: {final_params.get('relation_types', 'N/A')}")
+        logger.info("=" * 60)
 
 
 class PromptParameterBuilder(ABC):
@@ -98,7 +144,7 @@ class ClassificationParameterBuilder(PromptParameterBuilder):
 
 
 class EntityRelationParameterBuilder(PromptParameterBuilder):
-    """实体关系提取参数构建器"""
+    """实体关系提取参数构建器 - 统一版本"""
     
     # 默认实体类型
     DEFAULT_ENTITY_TYPES = ["公司/企业", "人物", "产品/服务", "地点", "事件", "概念/术语"]
@@ -111,42 +157,82 @@ class EntityRelationParameterBuilder(PromptParameterBuilder):
                         prompt_key: str,
                         entity_types: Optional[List[str]] = None,
                         relation_types: Optional[List[str]] = None,
+                        category_config: Optional[Dict[str, Dict]] = None,
                         **kwargs) -> Dict[str, Any]:
-        """构建实体关系提取参数"""
+        """构建实体关系提取参数 - 确保动态性和可追踪性"""
         params = {'text': text}
         
-        # 处理实体类型 - 优先使用用户提供的类型
-        if entity_types:
-            params['entity_types'] = ", ".join(entity_types)
-        elif prompt_key == 'entity_relation_extraction' and entity_types is not None:
-            # 基础版如果明确传入空列表，也使用空列表
-            params['entity_types'] = ""
-        elif self._should_include_defaults(prompt_key):
-            params['entity_types'] = ", ".join(self.DEFAULT_ENTITY_TYPES)
+        # 获取当前类别配置（用于动态实体和关系类型）
+        current_category = kwargs.get('current_category', 'financial')
         
-        # 处理关系类型 - 优先使用用户提供的类型
-        if relation_types:
-            params['relation_types'] = ", ".join(relation_types)
-        elif prompt_key == 'entity_relation_extraction' and relation_types is not None:
-            # 基础版如果明确传入空列表，也使用空列表
-            params['relation_types'] = ""
-        elif self._should_include_defaults(prompt_key):
+        # 处理实体类型 - 严格的动态参数传递
+        if entity_types is not None:
+            # 用户明确指定了实体类型（包括空列表）
+            params['entity_types'] = ", ".join(entity_types) if entity_types else ""
+            logger.debug(f"使用用户指定的实体类型: {entity_types}")
+        elif category_config and current_category in category_config:
+            # 使用类别配置中的实体类型
+            category_data = category_config[current_category]
+            entity_types_from_config = category_data.get('entity_types', self.DEFAULT_ENTITY_TYPES)
+            params['entity_types'] = ", ".join(entity_types_from_config)
+            logger.debug(f"使用类别配置中的实体类型: {current_category} -> {entity_types_from_config}")
+        else:
+            # 使用默认实体类型
+            params['entity_types'] = ", ".join(self.DEFAULT_ENTITY_TYPES)
+            logger.debug(f"使用默认实体类型: {self.DEFAULT_ENTITY_TYPES}")
+        
+        # 处理关系类型 - 严格的动态参数传递
+        if relation_types is not None:
+            # 用户明确指定了关系类型（包括空列表）
+            params['relation_types'] = ", ".join(relation_types) if relation_types else ""
+            logger.debug(f"使用用户指定的关系类型: {relation_types}")
+        elif category_config and current_category in category_config:
+            # 使用类别配置中的关系类型
+            category_data = category_config[current_category]
+            relation_types_from_config = category_data.get('relation_types', self.DEFAULT_RELATION_TYPES)
+            params['relation_types'] = ", ".join(relation_types_from_config)
+            logger.debug(f"使用类别配置中的关系类型: {current_category} -> {relation_types_from_config}")
+        else:
+            # 使用默认关系类型
             params['relation_types'] = ", ".join(self.DEFAULT_RELATION_TYPES)
+            logger.debug(f"使用默认关系类型: {self.DEFAULT_RELATION_TYPES}")
+        
+        # 添加调试信息，便于问题排查
+        logger.info(f"实体关系提取参数构建完成 - prompt_key: {prompt_key}, "
+                   f"entity_types: {params['entity_types']}, "
+                   f"relation_types: {params['relation_types']}")
+        
+        # 使用详细的日志工具记录参数构建过程
+        ParameterBuilderLogger.log_parameter_building(
+            prompt_key=prompt_key,
+            text_length=len(text),
+            entity_types=entity_types,
+            relation_types=relation_types,
+            category_config=category_config,
+            current_category=current_category,
+            final_params=params
+        )
         
         return params
     
     def supports_prompt_key(self, prompt_key: str) -> bool:
-        """支持实体关系提取相关提示词"""
-        return prompt_key in [
+        """支持实体关系提取相关提示词 - 统一为单一prompt"""
+        supported_keys = [
+            'entity_relation_extraction_unified',  # 新的统一版本
+            'entity_relation_extraction',           # 兼容旧版本
+            'entity_relation_extraction_enhanced', # 兼容旧版本
+            'knowledge_graph_extraction'            # 兼容旧版本
+        ]
+        return prompt_key in supported_keys
+    
+    def get_supported_prompt_keys(self) -> List[str]:
+        """返回支持的提示词键名列表，便于调试和文档"""
+        return [
+            'entity_relation_extraction_unified',
             'entity_relation_extraction',
             'entity_relation_extraction_enhanced',
             'knowledge_graph_extraction'
         ]
-    
-    def _should_include_defaults(self, prompt_key: str) -> bool:
-        """判断是否应该包含默认参数"""
-        # 增强版提示词默认包含默认参数
-        return prompt_key in ['entity_relation_extraction_enhanced', 'knowledge_graph_extraction', 'entity_relation_extraction']
 
 
 class CompositeParameterBuilder(PromptParameterBuilder):

@@ -1,0 +1,30 @@
+# 核心框架
+fastapi==0.115.8
+uvicorn==0.34.0
+pydantic==2.10.6
+
+# LangChain生态
+langchain==0.3.27
+langchain-core==0.3.75
+langchain-openai==0.2.14
+langchain-community==0.3.17
+
+# 数据库
+sqlalchemy==2.0.37
+alembic==1.14.1
+aiosqlite==0.20.0
+
+# 向量数据库
+chromadb==0.5.23
+
+# 配置管理
+pyyaml==6.0.2
+
+# 日志
+structlog==25.1.0
+
+# 工具库
+numpy==1.26.4
+pandas==2.2.3
+python-multipart==0.0.20
+httpx==0.28.1
