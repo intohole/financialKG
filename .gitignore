@@ -324,3 +324,5 @@ public
 # Temporary folders
 tmp/
 temp/
+
+*.sqlite3
