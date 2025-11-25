@@ -21,7 +21,7 @@ from app.embedding import EmbeddingService
 logger = logging.getLogger(__name__)
 
 
-class KGCoreImplService(BaseService, KGCoreAbstractService):
+class KGCoreImplService(BaseService,KGCoreAbstractService):
     """KG核心实现服务"""
 
     def __init__(self, content_processor=None, entity_analyzer=None, content_summarizer=None, llm_service=None, embedding_dimension: Optional[int] = None, auto_init_store: bool = True):
@@ -267,43 +267,44 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
                 
                 logger.info(f"找到 {len(similar_entities)} 个相似实体")
                 
-                if similar_entities:
-                    # 增加完全匹配逻辑
-                    for result in similar_entities:
-                        if result.entity and result.entity.name == entity.name:
-                            processed_entities[entity.name] = result.entity
-                            logger.info(f"已找到匹配实体: '{result.entity.name}'")
-                            return processed_entities
+                if not similar_entities:
+                    logger.info(f"未找到相似实体，将创建新的实体: '{entity.name}'")
+                    # 如果无重复，直接存储实体以及对应的关系
+                    logger.info(f"存储新实体: '{entity.name}'")
+                    stored_entity = await self.store.create_entity(entity)
+                    logger.info(
+                        f"成功存储实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
+                    processed_entities[entity.name] = stored_entity
+                    continue
 
-                    candidate_entities = [result.entity for result in similar_entities if result.entity and result.entity.name != entity.name]
-                    logger.debug(f"候选实体: {[e.name for e in candidate_entities]}")
+                is_all_match = False
+                for result in similar_entities:
+                    if result.entity and result.entity.name == entity.name:
+                        processed_entities[entity.name] = result.entity
+                        logger.info(f"已找到匹配实体: '{result.entity.name}'")
+                        is_all_match = True
+                if is_all_match:
+                    continue
+
+                candidate_entities = [result.entity for result in similar_entities if result.entity and result.entity.name != entity.name]
+                logger.debug(f"候选实体: {[e.name for e in candidate_entities]}")
 
 
-                    logger.info(f"解析实体 '{entity.name}' 的歧义...")
-                    ambiguity_result = await self.entity_analyzer.resolve_entity_ambiguity(
+                logger.info(f"解析实体 '{entity.name}' 的歧义...")
+                ambiguity_result = await self.entity_analyzer.resolve_entity_ambiguity(
                         entity, candidate_entities
-                    )
-                    
-                    logger.info(f"歧义解析结果: 选中实体={ambiguity_result.selected_entity.name if ambiguity_result.selected_entity else '无'}, 置信度={ambiguity_result.confidence}")
-                    
-                    if ambiguity_result.selected_entity:
+                )
+
+                logger.info(f"歧义解析结果: 选中实体={ambiguity_result.selected_entity.name if ambiguity_result.selected_entity else '无'}, 置信度={ambiguity_result.confidence}")
+
+                if ambiguity_result.selected_entity:
                         # 如果有选中的实体，使用选中的实体
-                        selected_entity = ambiguity_result.selected_entity
-                        logger.info(f"实体 '{entity.name}' 与选中实体 '{selected_entity.name}' 匹配 (置信度: {ambiguity_result.confidence})")
-                        processed_entities[entity.name] = selected_entity
-                        continue
-                else:
-                    logger.info(f"未找到相似实体，'{entity.name}' 是新实体")
-                
-                # 如果无重复，直接存储实体以及对应的关系
-                logger.info(f"存储新实体: '{entity.name}'")
-                stored_entity = await self.store.create_entity(entity)
-                logger.info(f"成功存储实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
-                processed_entities[entity.name] = stored_entity
-                
+                    selected_entity = ambiguity_result.selected_entity
+                    logger.info(f"实体 '{entity.name}' 与选中实体 '{selected_entity.name}' 匹配 (置信度: {ambiguity_result.confidence})")
+                    processed_entities[entity.name] = selected_entity
+
             except Exception as e:
                 logger.error(f"处理实体 '{entity.name}' 失败: {e}")
-                # 继续处理其他实体，不中断整个流程
                 continue
         
         logger.info(f"实体处理完成，共处理 {len(processed_entities)} 个有效实体")
@@ -370,18 +371,14 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             # 生成内容摘要
             summary_result = await self.content_summarizer.generate_summary(content)
             logger.info(f"生成摘要完成，长度: {len(summary_result.summary)} 字符")
-            
-            # 关联摘要与实体（示例：记录日志）
             entity_names = list(entities.keys())
             logger.info(f"摘要与以下 {len(entity_names)} 个实体关联: {entity_names[:10]}")  # 只显示前10个
             if len(entity_names) > 10:
                 logger.info(f"... 还有 {len(entity_names) - 10} 个实体")
-            
             return summary_result.summary
             
         except Exception as e:
             logger.error(f"处理内容摘要失败: {e}")
-            # 摘要失败不影响主流程，返回空字符串
             return ""
 
     async def query_knowledge(self, query: str) -> str:
@@ -428,6 +425,7 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
             logger.error(f"查询知识图谱失败: {e}")
             raise RuntimeError(f"查询知识图谱失败: {str(e)}")
 
+    @staticmethod
     def _build_query_context(self, search_results: List) -> str:
         """
         构建查询上下文
@@ -459,7 +457,6 @@ class KGCoreImplService(BaseService, KGCoreAbstractService):
         Returns:
             解析后的响应数据
         """
-        # 此方法保留用于向后兼容，但当前未在代码中使用
         return response
 
 
