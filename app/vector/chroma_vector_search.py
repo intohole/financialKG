@@ -3,7 +3,6 @@
 提供Chroma向量数据库的操作接口
 """
 
-import logging
 import os
 import asyncio
 from typing import List, Dict, Any, Optional, Union
@@ -15,22 +14,21 @@ from chromadb.utils import embedding_functions
 from pydantic_settings import BaseSettings
 
 from app.vector.base import VectorSearchBase
-from app.vector.exceptions import (
+from app.exceptions.vector_exceptions import (
     IndexNotFoundError,
     IndexAlreadyExistsError,
-    VectorNotFoundError,
     DimensionMismatchError,
     InvalidVectorError,
     VectorSearchConnectionError,
-    VectorSearchTimeoutError,
     QueryError,
     IndexOperationError,
     VectorOperationError,
     MetadataError
 )
+from app.utils.logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ChromaVectorSearch(VectorSearchBase):
@@ -282,23 +280,23 @@ class ChromaVectorSearch(VectorSearchBase):
             QueryError: 当查询参数无效时
         """
         try:
-            print(f"DEBUG: 开始搜索向量: index_name='{index_name}', top_k={top_k}, filter_dict={filter_dict}")
+            logger.debug(f"开始搜索向量: index_name='{index_name}', top_k={top_k}, filter_dict={filter_dict}")
             
             # 获取集合
             collection = self._get_collection(index_name)
-            print(f"DEBUG: 获取集合成功: {collection.name}")
+            logger.debug(f"获取集合成功: {collection.name}")
             
             # 验证查询向量
             if not query_vector or not isinstance(query_vector, list):
                 raise QueryError("无效的查询向量")
             
-            print(f"DEBUG: 查询向量验证通过: 维度={len(query_vector)}")
+            logger.debug(f"查询向量验证通过: 维度={len(query_vector)}")
             
             # 设置包含字段
             include = kwargs.get('include', ['embeddings', 'metadatas', 'documents', 'distances'])
             
             # 执行搜索
-            print(f"DEBUG: 执行Chroma查询: n_results={top_k}, filter={filter_dict}")
+            logger.debug(f"执行Chroma查询: n_results={top_k}, filter={filter_dict}")
             
             # 构建ChromaDB格式的where条件
             chroma_where = None
@@ -310,7 +308,7 @@ class ChromaVectorSearch(VectorSearchBase):
                     # 多个条件需要使用 $and 操作符
                     chroma_where = {"$and": [{k: v} for k, v in filter_dict.items()]}
             
-            print(f"DEBUG: 转换后的Chroma where条件: {chroma_where}")
+            logger.debug(f"转换后的Chroma where条件: {chroma_where}")
             results = collection.query(
                 query_embeddings=[query_vector],
                 n_results=top_k,
@@ -318,11 +316,11 @@ class ChromaVectorSearch(VectorSearchBase):
                 include=include
             )
             
-            print(f"DEBUG: Chroma查询完成: results.keys()={list(results.keys())}")
+            logger.debug(f"Chroma查询完成: results.keys()={list(results.keys())}")
             
             # 检查搜索结果
             if 'ids' not in results or results['ids'] is None or len(results['ids'][0]) == 0:
-                print("DEBUG: 搜索结果为空")
+                logger.debug("搜索结果为空")
                 return []
             
             # 格式化结果
@@ -667,16 +665,16 @@ class ChromaVectorSearch(VectorSearchBase):
             List[Dict[str, Any]]: 搜索结果列表
         """
         try:
-            print(f"DEBUG: 异步搜索向量开始: content_type='{content_type}', top_k={top_k}")
+            logger.debug(f"异步搜索向量开始: content_type='{content_type}', top_k={top_k}")
             
             # 构建过滤条件 - 使用ChromaDB支持的格式
             filter_dict = None
             if content_type:
                 filter_dict = {"content_type": {"$eq": content_type}}
-            print(f"DEBUG: 构建过滤条件: {filter_dict}")
+            logger.debug(f"构建过滤条件: {filter_dict}")
             
             # 调用同步搜索方法
-            print(f"DEBUG: 调用同步搜索方法: index_name='{content_type}', query_vector维度={len(query_embedding)}")
+            logger.debug(f"调用同步搜索方法: index_name='{content_type}', query_vector维度={len(query_embedding)}")
             results = await asyncio.get_event_loop().run_in_executor(
                 None,
                 self.search_vectors,
@@ -686,7 +684,7 @@ class ChromaVectorSearch(VectorSearchBase):
                 filter_dict
             )
             
-            print(f"DEBUG: 异步搜索向量完成: 返回结果数量={len(results)}")
+            logger.debug(f"异步搜索向量完成: 返回结果数量={len(results)}")
             return results
             
         except Exception as e:

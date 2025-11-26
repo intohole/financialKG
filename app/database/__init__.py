@@ -19,9 +19,8 @@ from .manager import (
     get_database_manager,
     get_session
 )
+from .repositories import EntityRepository, RelationRepository, AttributeRepository, NewsEventRepository
 
-# 工作单元模式
-from .unit_of_work import UnitOfWork
 
 # 延迟导入具体存储库实现，避免循环导入问题
 def __getattr__(name):
@@ -49,8 +48,7 @@ __all__ = [
     # 核心抽象
     'BaseRepository',
     'DatabaseManager',
-    'UnitOfWork',
-    
+
     # 初始化函数
     'init_database',
     'get_database_manager',

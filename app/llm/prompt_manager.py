@@ -4,14 +4,15 @@
 """
 
 import os
-import logging
 from pathlib import Path
 from typing import Dict, Optional, Union, Any
 from contextlib import contextmanager
-from app.llm.exceptions import PromptError
+from app.exceptions import PromptError
+
+from app.utils.logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PromptManager:

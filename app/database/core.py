@@ -3,7 +3,6 @@
 提供数据库访问的核心抽象和基础组件
 """
 
-import logging
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Dict, Generic, List, Optional, Type, TypeVar
 
@@ -17,8 +16,10 @@ from sqlalchemy.orm import declarative_base
 Base = declarative_base()
 from .manager import DatabaseManager
 
+from app.utils.logging_utils import get_logger
+
 # 配置日志
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # 类型定义
 ModelType = TypeVar("ModelType", bound=DeclarativeBase)

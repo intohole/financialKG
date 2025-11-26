@@ -15,8 +15,8 @@ class Entity(Base):
     canonical_id = Column(Integer, ForeignKey('entities.id'), nullable=True, comment='合并后的官方实体ID')
     vector_id = Column(String(255), nullable=True, comment='向量存储中的ID')
     meta_data = Column(JSON, nullable=True, comment='实体的元数据信息')
-    created_at  = Column(DateTime, default=datetime.utcnow, comment='创建时间')
-    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
+    created_at  = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at  = Column(DateTime, default=datetime.now, onupdate=datetime.utcnow, comment='更新时间')
 
     # 自引用关系：官方实体可拥有多个别名实体
     canonical = relationship('Entity', remote_side=[id], backref='aliases')
@@ -35,7 +35,7 @@ class Relation(Base):
     description = Column(Text, comment='关系描述')
     vector_id = Column(String(255), nullable=True, comment='向量存储中的ID')
     meta_data = Column(JSON, nullable=True, comment='关系的元数据信息')
-    created_at  = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at  = Column(DateTime, default=datetime.now, comment='创建时间')
 
     # 联合唯一：同一主体+谓词+客体只能出现一次
     __table_args__ = (
@@ -55,7 +55,7 @@ class Attribute(Base):
     entity_id = Column(Integer, ForeignKey('entities.id'), nullable=False, comment='所属实体ID')
     key       = Column(String(128), nullable=False, comment='属性键')
     value     = Column(Text, comment='属性值')
-    created_at = Column(DateTime, default=datetime.utcnow, comment='创建时间')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
 
     # 同一实体下属性键唯一
     __table_args__ = (
@@ -73,8 +73,8 @@ class NewsEvent(Base):
     content     = Column(Text, comment='新闻正文')
     source      = Column(String(255), comment='新闻来源')
     publish_time = Column(DateTime, comment='发布时间')
-    created_at  = Column(DateTime, default=datetime.utcnow, comment='创建时间')
-    updated_at  = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, comment='更新时间')
+    created_at  = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at  = Column(DateTime, default=datetime.now, onupdate=datetime.utcnow, comment='更新时间')
 
     # 与实体的多对多关联
     entities = relationship('Entity', secondary='news_event_entity', back_populates='news_events')
@@ -86,7 +86,7 @@ news_event_entity = Table(
     Base.metadata,
     Column('news_event_id', Integer, ForeignKey('news_events.id'), primary_key=True),
     Column('entity_id', Integer, ForeignKey('entities.id'), primary_key=True),
-    Column('created_at', DateTime, default=datetime.utcnow, comment='关联创建时间')
+    Column('created_at', DateTime, default=datetime.now, comment='关联创建时间')
 )
 
 

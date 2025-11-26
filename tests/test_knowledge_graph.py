@@ -1,12 +1,11 @@
 """知识图谱服务测试"""
 
 import asyncio
-import logging
 from pathlib import Path
 
-# 设置日志
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 
 # 添加项目根目录到Python路径
 import sys

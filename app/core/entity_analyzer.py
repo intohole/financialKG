@@ -1,7 +1,6 @@
 """
 实体关系判断模块 - 基于大模型prompt的多实体语义关联分析
 """
-import logging
 from typing import List, Optional
 
 from app.core.base_service import BaseService
@@ -13,8 +12,9 @@ from app.core.models import (
 )
 from app.llm.llm_service import LLMService
 from app.utils.json_extractor import extract_json_robust
+from app.utils.logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EntityAnalyzer(BaseService):

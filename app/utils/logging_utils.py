@@ -17,7 +17,8 @@ from pathlib import Path
 import threading
 from contextlib import contextmanager
 
-from app.config.config_manager import ConfigManager, ConfigError
+# 延迟导入 ConfigManager 以避免循环依赖
+# from app.config.config_manager import ConfigManager
 
 
 class ProjectLoggerAdapter(logging.LoggerAdapter):
@@ -264,7 +265,7 @@ class LoggingManager:
         self._lock = threading.Lock()
         self._initialized = False
     
-    def initialize(self, config_manager: ConfigManager) -> None:
+    def initialize(self, config_manager: 'ConfigManager') -> None:
         """初始化日志管理器
         
         Args:
@@ -311,6 +312,9 @@ class LoggingManager:
             logging_config: 日志配置对象
         """
         try:
+            # 延迟导入 ConfigManager 以避免循环依赖
+            from app.config.config_manager import ConfigManager
+            
             # 确保日志目录存在
             for handler_name, handler_config in logging_config.handlers.items():
                 if 'filename' in handler_config:
@@ -330,7 +334,9 @@ class LoggingManager:
             logging.config.dictConfig(config_dict)
             
         except Exception as e:
-            raise ConfigError(f"日志配置错误: {e}")
+            # 使用基础异常而不是 ConfigError 避免循环依赖
+            from app.exceptions.base_exceptions import BaseException
+            raise BaseException(f"日志配置错误: {e}", error_code="CONFIGURATION_ERROR")
     
     def _setup_default_logging(self) -> None:
         """设置默认日志配置"""
@@ -363,8 +369,9 @@ class LoggingManager:
             logger.info("日志配置已重新加载")
             
         except Exception as e:
-            logger = self.get_logger(__name__)
-            logger.error(f"日志配置重载失败: {e}")
+            # 使用基础日志器避免循环依赖问题
+            basic_logger = logging.getLogger(__name__)
+            basic_logger.error(f"日志配置重载失败: {e}")
     
     def get_logger(self, name: str = __name__, 
                    context: Optional[Dict[str, Any]] = None) -> ProjectLoggerAdapter:
@@ -394,7 +401,7 @@ class LoggingManager:
 _logging_manager = LoggingManager()
 
 
-def initialize_logging(config_manager: ConfigManager) -> None:
+def initialize_logging(config_manager: 'ConfigManager') -> None:
     """初始化项目日志系统
     
     Args:

@@ -5,10 +5,10 @@
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
-import logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+from app.utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class ParameterBuilderLogger:

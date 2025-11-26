@@ -3,17 +3,17 @@
 负责向量搜索实例的创建、管理和配置
 """
 
-import logging
 from typing import Dict, Any, Optional, Union
 from threading import Lock
 
 from app.config.config_manager import ConfigManager, VectorSearchConfig
 from app.vector.base import VectorSearchBase
 from app.vector.chroma_vector_search import ChromaVectorSearch
-from app.vector.exceptions import VectorSearchError
+from app.exceptions import VectorSearchError
+from app.utils.logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class VectorSearchService:

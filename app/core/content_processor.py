@@ -14,7 +14,6 @@
     # 实体关系提取
     extraction = await processor.extract_entities_and_relations("苹果公司发布了新款iPhone")
 """
-import logging
 from typing import List, Optional, Dict
 
 from app.core.base_service import BaseService
@@ -33,7 +32,9 @@ from app.core.prompt_parameter_builder import (
 from app.llm.llm_service import LLMService
 from app.utils.json_extractor import extract_json_robust
 
-logger = logging.getLogger(__name__)
+from app.utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class ContentProcessor(BaseService):

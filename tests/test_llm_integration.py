@@ -12,13 +12,16 @@ from unittest import mock
 from app.llm.llm_client import LLMClient
 from app.llm.llm_service import LLMService
 from app.llm.base import LLMResponse
-from app.llm.exceptions import (
+from app.exceptions import (
     GenerationError,
     ConfigurationError,
     ServiceUnavailableError,
     RateLimitError
 )
 from app.config.config_manager import ConfigManager
+from app.utils.logging_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class TestLLMIntegration:
@@ -112,14 +115,14 @@ class TestLLMIntegration:
             assert response.content is not None
             assert len(response.content.strip()) > 0
             assert response.metadata['model'] == "glm-4-flash"
-            print(f"\n简单生成测试成功，响应内容: {response.content[:100]}...")
+            logger.info(f"\n简单生成测试成功，响应内容: {response.content[:100]}...")
             
         except RateLimitError:
             pytest.skip("跳过测试：达到API速率限制")
         except ServiceUnavailableError:
             pytest.skip("跳过测试：服务不可用")
         except (GenerationError, ConfigurationError) as e:
-            print(f"警告：大模型调用失败: {e}")
+            logger.warning(f"大模型调用失败: {e}")
             # 如果是配置错误，可能是API密钥无效或过期
             if "API key is invalid" in str(e) or "authentication" in str(e).lower():
                 pytest.skip("跳过测试：API密钥无效或认证失败")
@@ -141,14 +144,14 @@ class TestLLMIntegration:
             assert isinstance(response, LLMResponse)
             assert response.content is not None
             assert len(response.content.strip()) > 0
-            print(f"\n模板生成测试成功，响应内容: {response.content[:100]}...")
+            logger.info(f"\n模板生成测试成功，响应内容: {response.content[:100]}...")
             
         except RateLimitError:
             pytest.skip("跳过测试：达到API速率限制")
         except ServiceUnavailableError:
             pytest.skip("跳过测试：服务不可用")
         except (GenerationError, ConfigurationError) as e:
-            print(f"警告：大模型调用失败: {e}")
+            logger.warning(f"大模型调用失败: {e}")
             if "API key is invalid" in str(e) or "authentication" in str(e).lower():
                 pytest.skip("跳过测试：API密钥无效或认证失败")
             else:
@@ -166,22 +169,22 @@ class TestLLMIntegration:
             response = service.generate("1+1等于多少？")
             assert isinstance(response, LLMResponse)
             assert len(response.content.strip()) > 0
-            print(f"\n服务层生成测试成功，响应内容: {response.content[:100]}...")
+            logger.info(f"\n服务层生成测试成功，响应内容: {response.content[:100]}...")
             
             # 测试健康检查
             health_status = service.health_check()
-            print(f"\n健康检查状态: {health_status}")
+            logger.info(f"\n健康检查状态: {health_status}")
             
             # 注释掉统计信息调用，因为LLMService类中没有这个方法
             # stats = service.get_stats()
-            # print(f"\n调用统计: {stats}")
+            # logger.info(f"\n调用统计: {stats}")
             
         except RateLimitError:
             pytest.skip("跳过测试：达到API速率限制")
         except ServiceUnavailableError:
             pytest.skip("跳过测试：服务不可用")
         except Exception as e:
-            print(f"警告：服务层测试失败: {e}")
+            logger.warning(f"服务层测试失败: {e}")
             raise
     
     @pytest.mark.asyncio
@@ -195,14 +198,14 @@ class TestLLMIntegration:
             
             assert isinstance(response, LLMResponse)
             assert len(response.content.strip()) > 0
-            print(f"\n异步生成测试成功，响应内容: {response.content}")
+            logger.info(f"\n异步生成测试成功，响应内容: {response.content}")
             
         except RateLimitError:
             pytest.skip("跳过测试：达到API速率限制")
         except ServiceUnavailableError:
             pytest.skip("跳过测试：服务不可用")
         except Exception as e:
-            print(f"警告：异步测试失败: {e}")
+            logger.warning(f"异步测试失败: {e}")
             raise
 
 

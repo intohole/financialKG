@@ -4,19 +4,18 @@
 """
 
 import time
-import logging
 import functools
 from typing import Any, Callable, Dict, Optional, Union, Type, List
 from dataclasses import dataclass
-from app.llm.exceptions import (
+from app.exceptions import (
     LLMError, GenerationError, ConfigurationError, 
     RateLimitError, AuthenticationError, ServiceUnavailableError,
     PromptError
 )
-from app.llm.logging_utils import get_llm_logger
+from app.utils.logging_utils import get_logger
 
 
-logger = get_llm_logger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -44,7 +43,7 @@ class ErrorHandler:
             default_retry_config: 默认重试配置
         """
         self._default_retry_config = default_retry_config or RetryConfig()
-        self._logger = get_llm_logger(__name__)
+        self._logger = get_logger(__name__)
     
     def handle_error(self, 
                     exc: Exception,

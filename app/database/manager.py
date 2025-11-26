@@ -3,7 +3,6 @@
 提供数据库连接管理和会话管理功能
 """
 
-import logging
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -13,9 +12,10 @@ from sqlalchemy.exc import SQLAlchemyError
 # 避免循环导入，在函数内部导入
 # from .core import DatabaseConfig, DatabaseError
 from app.database.models import Base
+from app.utils.logging_utils import get_logger
 
 # 配置日志
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DatabaseManager:

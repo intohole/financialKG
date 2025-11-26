@@ -3,24 +3,21 @@
 包含具体的实体、关系、属性和新闻事件的操作逻辑
 """
 
-import logging
-from typing import List, Optional
+from typing import Optional
+# 延迟导入模型，避免循环导入问题
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, and_, update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-
-# 延迟导入模型，避免循环导入问题
-import sys
-from typing import TYPE_CHECKING
+from sqlalchemy.ext.asyncio import AsyncSession
 
 if TYPE_CHECKING:
     from .models import Entity, Relation, Attribute, NewsEvent, news_event_entity
-    from sqlalchemy import Table
 from .core import BaseRepository, DatabaseError, NotFoundError, IntegrityError as CoreIntegrityError
+from app.utils.logging_utils import get_logger
 
 # 配置日志
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EntityRepository(BaseRepository):

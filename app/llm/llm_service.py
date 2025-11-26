@@ -3,18 +3,17 @@
 提供更高级别的大模型服务集成，简化使用并提供额外功能
 """
 
-import logging
 import asyncio
-from typing import Any, Dict, Optional, Union, List
+from typing import Any, Dict, Optional, List
 from concurrent.futures import ThreadPoolExecutor
 
 from app.llm.llm_client import LLMClient
 from app.llm.base import LLMResponse
-from app.llm.exceptions import LLMError
 from app.config.config_manager import ConfigManager
+from app.utils.logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LLMService:

@@ -4,9 +4,7 @@
 """
 
 import os
-import time
 import yaml
-import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union, Callable, List
 from dataclasses import dataclass
@@ -14,13 +12,14 @@ from threading import Lock
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+from app.exceptions.base_exceptions import BaseException
+from app.utils.logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 
-class ConfigError(Exception):
-    """配置相关错误"""
-    pass
+
 
 
 @dataclass
@@ -176,7 +175,7 @@ class ConfigManager:
         
         # 确保配置文件存在
         if not self._config_path.exists():
-            raise ConfigError(f"配置文件不存在: {self._config_path}")
+            raise BaseException(f"配置文件不存在: {self._config_path}", error_code="CONFIG_NOT_FOUND_ERROR")
     
     def _get_default_config_path(self) -> Path:
         """获取默认配置文件路径"""
@@ -195,9 +194,9 @@ class ConfigManager:
             with open(self._config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f) or {}
         except yaml.YAMLError as e:
-            raise ConfigError(f"YAML解析错误: {e}")
+            raise BaseException(f"YAML解析错误: {e}", error_code="CONFIG_FORMAT_ERROR")
         except Exception as e:
-            raise ConfigError(f"配置文件读取错误: {e}")
+            raise BaseException(f"配置文件读取错误: {e}", error_code="CONFIG_LOAD_ERROR")
     
     def _should_reload(self) -> bool:
         """检查是否需要重新加载配置"""
@@ -302,14 +301,17 @@ class ConfigManager:
     def get_logging_config(self) -> LoggingConfig:
         """获取日志配置"""
         config = self.get_config().get('logging', {})
-        return LoggingConfig(
-            version=config.get('version', 1),
-            disable_existing_loggers=config.get('disable_existing_loggers', False),
-            formatters=config.get('formatters', {}),
-            handlers=config.get('handlers', {}),
-            loggers=config.get('loggers', {}),
-            root=config.get('root', {})
-        )
+        try:
+            return LoggingConfig(
+                version=config.get('version', 1),
+                disable_existing_loggers=config.get('disable_existing_loggers', False),
+                formatters=config.get('formatters', {}),
+                handlers=config.get('handlers', {}),
+                loggers=config.get('loggers', {}),
+                root=config.get('root', {})
+            )
+        except Exception as e:
+            raise BaseException(f"日志配置错误: {e}", error_code="CONFIGURATION_ERROR")
     
     def get_news_processing_config(self) -> NewsProcessingConfig:
         """获取新闻处理配置"""

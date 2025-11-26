@@ -14,20 +14,21 @@ HybridStore核心模块 - 专注基础存储能力
 - 异常处理：统一的异常处理机制
 """
 
-import logging
 from typing import List, Dict, Any, Optional
 
 from app.database.manager import DatabaseManager
 from app.database.repositories import EntityRepository, RelationRepository, NewsEventRepository
+from app.exceptions import EntityNotFoundError, RelationNotFoundError
+from app.exceptions.store_exceptions import StoreError
 from app.store.store_base_abstract import StoreBase, Entity, Relation, NewsEvent, SearchResult, StoreConfig
-from app.store.store_exceptions_define import StoreError, EntityNotFoundError, RelationNotFoundError
 from app.store.store_data_convert import DataConverter
 from app.store.vector_index_manage import VectorIndexManager
 from app.vector.base import VectorSearchBase
 from app.embedding import EmbeddingService
+from app.utils.logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class HybridStoreCore(StoreBase):

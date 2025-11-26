@@ -5,8 +5,8 @@ Embedding 模块
 
 from .embedding_service import EmbeddingService
 from .embedding_client import EmbeddingClient
-from .exceptions import EmbeddingError
-from .models import EmbeddingRequest, EmbeddingResponse
+from app.exceptions import EmbeddingError
+from .embedding_models import EmbeddingRequest, EmbeddingResponse
 
 __all__ = [
     'EmbeddingService',

@@ -1,10 +1,13 @@
-"""大模型服务异常类
+"""
+大模型服务异常类
 
 定义所有大模型服务可能抛出的异常类型
 """
 
+from .base_exceptions import BaseException
 
-class LLMError(Exception):
+
+class LLMError(BaseException):
     """大模型服务基础异常
     
     所有大模型服务相关异常的基类
@@ -17,9 +20,7 @@ class LLMError(Exception):
             error_code: 错误代码
             **kwargs: 额外信息
         """
-        self.error_code = error_code
-        self.extra_info = kwargs
-        super().__init__(message)
+        super().__init__(message, error_code, **kwargs)
 
 
 class PromptError(LLMError):

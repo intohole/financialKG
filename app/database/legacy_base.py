@@ -6,9 +6,9 @@
 import logging
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import Any, AsyncIterator, Dict, Generic, List, Optional, Type, TypeVar, Union, Coroutine, Sequence
 
-from sqlalchemy import select, insert, update, delete, func
+from sqlalchemy import select, insert, update, delete, func, Row, RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, AsyncAttrs
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError, NoResultFound
@@ -167,7 +167,7 @@ class BaseRepository(Generic[ModelType]):
         limit: int = 100,
         order_by: Optional[str] = None,
         desc: bool = False
-    ) -> List[ModelType]:
+    ) -> Sequence[Row[Any] | RowMapping | Any]:
         """获取所有记录"""
         try:
             stmt = select(self.model)

@@ -1,15 +1,15 @@
 """
 内容摘要模块 - 基于大模型prompt的文本摘要生成
 """
-import logging
 import re
 from typing import List, Dict, Any, Optional
 
 from app.core.base_service import BaseService
 from app.core.models import ContentSummary
 from app.llm.llm_service import LLMService
+from app.utils.logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ContentSummarizer(BaseService):

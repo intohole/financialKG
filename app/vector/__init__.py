@@ -13,7 +13,7 @@ from app.vector.chroma_vector_search import ChromaVectorSearch
 from app.vector.vector_service import VectorSearchService
 
 # 导出异常类
-from app.vector.exceptions import (
+from app.exceptions import (
     VectorSearchError,
     IndexNotFoundError,
     DimensionMismatchError,

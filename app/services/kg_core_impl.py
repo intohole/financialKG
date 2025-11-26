@@ -1,7 +1,6 @@
 """
 KG核心实现服务
 """
-import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
@@ -17,8 +16,9 @@ from app.database.manager import DatabaseManager, init_database
 from app.database.core import DatabaseConfig
 from app.vector.vector_service import VectorSearchService
 from app.embedding import EmbeddingService
+from app.utils.logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class KGCoreImplService(BaseService,KGCoreAbstractService):

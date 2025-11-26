@@ -2,7 +2,6 @@
 基础服务类 - 提供大模型调用和响应处理的核心功能
 """
 import json
-import logging
 import re
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
@@ -11,8 +10,9 @@ from app.config.config_manager import ConfigManager
 from app.llm.prompt_manager import PromptManager
 from app.llm.llm_service import LLMService
 from app.utils.json_extractor import extract_json_robust
+from app.utils.logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BaseService(ABC):

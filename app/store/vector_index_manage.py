@@ -12,16 +12,16 @@
 - 异常处理：统一的异常处理
 """
 
-import logging
 from typing import List, Dict, Any, Optional
 
+from app.exceptions.store_exceptions import StoreError
 from app.vector.base import VectorSearchBase
-from app.vector.exceptions import IndexNotFoundError
+from app.exceptions import IndexNotFoundError
 from app.embedding import EmbeddingService
-from app.store.store_exceptions_define import StoreError
+from app.utils.logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class VectorIndexManager:

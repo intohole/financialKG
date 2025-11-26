@@ -3,16 +3,14 @@ Embedding 服务
 提供文本嵌入的高级服务接口，包括缓存、批处理等功能
 """
 
+import asyncio
+import hashlib
 import logging
 from typing import List, Dict, Any, Optional
-import hashlib
-import asyncio
-from functools import lru_cache
 
 from app.config.config_manager import ConfigManager
 from .embedding_client import EmbeddingClient
-from .exceptions import EmbeddingError
-from .models import EmbeddingRequest, EmbeddingResponse
+from ..exceptions import EmbeddingError
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,6 @@ Embedding 客户端
 负责与第三方大模型API交互，获取文本嵌入向量
 """
 
-import logging
 import time
 from typing import List, Dict, Any, Optional
 from langchain_core.embeddings import Embeddings
@@ -13,9 +12,10 @@ from langchain_community.embeddings import (HuggingFaceBgeEmbeddings,
                                           ZhipuAIEmbeddings)
 
 from app.config.config_manager import ConfigManager
-from .exceptions import EmbeddingError
+from app.exceptions import EmbeddingError
+from app.utils.logging_utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class EmbeddingClient:

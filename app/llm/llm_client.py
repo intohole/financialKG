@@ -4,26 +4,21 @@
 """
 
 import time
-import logging
-from typing import Any, Dict, Optional, Union, List
 from contextlib import contextmanager
+from typing import Any, Dict, Optional, List
 
-import langchain
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import (SystemMessage, HumanMessage, AIMessage, 
-                                     ChatMessage, BaseMessage)
-# from langchain_core.callbacks import get_openai_callback  # 暂时移除，新版本API变更
 
 from app.config.config_manager import ConfigManager, LLMConfig
 from app.llm.base import BaseLLMService, LLMResponse
-from app.llm.exceptions import (
-    LLMError, GenerationError, ConfigurationError, 
-    RateLimitError, AuthenticationError, ServiceUnavailableError
-)
+from app.exceptions import GenerationError, ConfigurationError, AuthenticationError
 from app.llm.prompt_manager import PromptManager
+from app.utils.logging_utils import get_logger
 
 
-logger = logging.getLogger(__name__)
+
+logger = get_logger(__name__)
 
 
 class LLMClient(BaseLLMService):
@@ -104,17 +99,17 @@ class LLMClient(BaseLLMService):
     
     def _create_llm_instance(self) -> None:
         """创建LangChain LLM实例
-        
+
         根据配置创建适当的LangChain LLM实例
         """
         config = self._llm_config
-        
+
+        # 检查必要的配置项
+        if not config.api_key:
+            raise ConfigurationError("缺少API密钥")
+
+        # 创建ChatOpenAI实例（支持OpenAI兼容的API）
         try:
-            # 检查必要的配置项
-            if not config.api_key:
-                raise ConfigurationError("缺少API密钥")
-            
-            # 创建ChatOpenAI实例（支持OpenAI兼容的API）
             self._llm_instance = ChatOpenAI(
                 model_name=config.model,
                 openai_api_key=config.api_key,
@@ -124,8 +119,7 @@ class LLMClient(BaseLLMService):
                 request_timeout=config.timeout,
                 max_retries=config.max_retries
             )
-            
-            logger.debug(f"LangChain LLM实例创建成功")
+            logger.debug("LangChain LLM实例创建成功")
         except Exception as e:
             logger.error(f"创建LLM实例失败: {e}")
             raise ConfigurationError(f"创建LLM实例失败: {e}")
@@ -143,35 +137,178 @@ class LLMClient(BaseLLMService):
     
     def validate_config(self) -> bool:
         """验证配置是否有效
-        
+
         Returns:
             bool: 配置是否有效
         """
         config = self._llm_config
-        
+
         # 检查必填项
         if not all([config.model, config.api_key]):
             logger.error("配置验证失败: 缺少必要的配置项")
             return False
-        
+
         # 检查数值范围
         if not (0 <= config.temperature <= 2):
             logger.error(f"配置验证失败: temperature值 {config.temperature} 超出有效范围 [0, 2]")
             return False
-        
+
         if config.max_tokens <= 0:
             logger.error(f"配置验证失败: max_tokens值 {config.max_tokens} 必须大于0")
             return False
-        
+
         if config.timeout <= 0:
             logger.error(f"配置验证失败: timeout值 {config.timeout} 必须大于0")
             return False
-        
+
         if config.max_retries < 0:
             logger.error(f"配置验证失败: max_retries值 {config.max_retries} 不能为负数")
             return False
-        
+
         return True
+    
+    def _extract_token_usage(self, response: Any, messages: List[SystemMessage | HumanMessage]) -> Dict[str, int]:
+        """提取token使用信息
+        
+        Args:
+            response: LLM响应对象
+            messages: 消息列表
+            
+        Returns:
+            Dict[str, int]: token使用统计
+        """
+        # 尝试从response对象中获取token信息
+        if hasattr(response, 'usage') and response.usage:
+            usage = response.usage
+            return {
+                'prompt': usage.get('prompt_tokens', 0),
+                'completion': usage.get('completion_tokens', 0),
+                'total': usage.get('total_tokens', 0)
+            }
+        
+        # 尝试从response_metadata中获取
+        if hasattr(response, 'response_metadata') and response.response_metadata:
+            token_usage = response.response_metadata.get('token_usage', {})
+            if token_usage:
+                return {
+                    'prompt': token_usage.get('prompt_tokens', 0),
+                    'completion': token_usage.get('completion_tokens', 0),
+                    'total': token_usage.get('total_tokens', 0)
+                }
+        
+        # 尝试从metadata中获取
+        if hasattr(response, 'metadata') and response.metadata:
+            token_usage = response.metadata.get('token_usage', {})
+            if token_usage:
+                return {
+                    'prompt': token_usage.get('prompt_tokens', 0),
+                    'completion': token_usage.get('completion_tokens', 0),
+                    'total': token_usage.get('total_tokens', 0)
+                }
+        
+        # 如果没有token信息，使用估算方法
+        return self._estimate_token_usage(messages, response.content)
+    
+    def _estimate_token_usage(self, messages: List[SystemMessage | HumanMessage], content: str) -> Dict[str, int]:
+        """估算token使用量
+        
+        Args:
+            messages: 消息列表
+            content: 响应内容
+            
+        Returns:
+            Dict[str, int]: token使用估算
+        """
+        try:
+            import tiktoken
+            # 使用tiktoken库估算token数量
+            encoding = tiktoken.get_encoding("cl100k_base")  # GPT-4的编码方案
+            prompt_text = " ".join(msg.content for msg in messages)
+            prompt_tokens = len(encoding.encode(prompt_text))
+            completion_tokens = len(encoding.encode(content))
+            return {
+                'prompt': prompt_tokens,
+                'completion': completion_tokens,
+                'total': prompt_tokens + completion_tokens
+            }
+        except Exception:
+            # 如果tiktoken不可用，使用字符数粗略估算
+            prompt_text = " ".join(msg.content for msg in messages)
+            return {
+                'prompt': len(prompt_text) // 4,  # 粗略估算：4个字符约等于1个token
+                'completion': len(content) // 4,
+                'total': (len(prompt_text) + len(content)) // 4
+            }
+    
+    def _get_retry_delay(self, error: Exception, attempt: int) -> Optional[float]:
+        """获取重试延迟时间
+        
+        Args:
+            error: 异常对象
+            attempt: 当前尝试次数
+            
+        Returns:
+            Optional[float]: 延迟时间（秒），如果为None则表示不可重试
+        """
+        error_msg = str(error).lower()
+        
+        # 认证错误，不可重试
+        if any(keyword in error_msg for keyword in ['authentication', 'invalid api key']):
+            raise AuthenticationError(f"认证失败: {error}")
+        
+        # 速率限制错误，指数退避
+        if any(keyword in error_msg for keyword in ['rate limit', 'too many requests']):
+            return attempt * 2  # 指数退避
+        
+        # 服务不可用，线性退避
+        if any(keyword in error_msg for keyword in ['service unavailable', 'server error']):
+            return attempt  # 线性退避
+        
+        # 其他错误，固定延迟
+        return 1.0
+    
+    def _handle_generation_error(self, error: Exception) -> None:
+        """处理生成错误
+        
+        Args:
+            error: 异常对象
+            
+        Raises:
+            GenerationError: 如果是输出解析错误
+        """
+        try:
+            from langchain.schema.output_parser import OutputParserException
+            if isinstance(error, OutputParserException):
+                raise GenerationError(f"输出解析失败: {error}", model=self._llm_config.model)
+        except ImportError:
+            # 如果无法导入OutputParserException，使用字符串匹配
+            if 'OutputParserException' in str(type(error)):
+                raise GenerationError(f"输出解析失败: {error}", model=self._llm_config.model)
+    
+    def _calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
+        """计算API调用成本
+        
+        Args:
+            prompt_tokens: 输入token数量
+            completion_tokens: 输出token数量
+            
+        Returns:
+            float: 估算的成本（美元）
+        """
+        model = self._llm_config.model or ""
+        model_lower = model.lower()
+        
+        # 基于常见的OpenAI定价，需要根据实际模型调整
+        if 'gpt-4' in model_lower:
+            return (prompt_tokens * 0.03 + completion_tokens * 0.06) / 1000
+        elif 'gpt-3.5' in model_lower:
+            return (prompt_tokens * 0.0015 + completion_tokens * 0.002) / 1000
+        elif 'glm-4' in model_lower:
+            # GLM-4的近似定价
+            return (prompt_tokens * 0.01 + completion_tokens * 0.02) / 1000
+        else:
+            # 默认使用GPT-3.5的定价
+            return (prompt_tokens * 0.0015 + completion_tokens * 0.002) / 1000
     
     def generate(self, prompt: str, **kwargs) -> LLMResponse:
         """生成文本响应
@@ -221,54 +358,14 @@ class LLMClient(BaseLLMService):
                 # 计算延迟
                 latency = time.time() - start_time
                 
-                # 尝试从response对象中获取token信息
-                prompt_tokens = 0
-                completion_tokens = 0
-                total_tokens = 0
-                cost = 0
+                # 提取token使用信息
+                token_usage = self._extract_token_usage(response, messages)
+                prompt_tokens = token_usage['prompt']
+                completion_tokens = token_usage['completion']
+                total_tokens = token_usage['total']
                 
-                # 检查response对象是否有token使用信息
-                if hasattr(response, 'usage'):
-                    usage = response.usage
-                    prompt_tokens = usage.get('prompt_tokens', 0)
-                    completion_tokens = usage.get('completion_tokens', 0)
-                    total_tokens = usage.get('total_tokens', 0)
-                elif hasattr(response, 'response_metadata') and 'token_usage' in response.response_metadata:
-                    token_usage = response.response_metadata['token_usage']
-                    prompt_tokens = token_usage.get('prompt_tokens', 0)
-                    completion_tokens = token_usage.get('completion_tokens', 0)
-                    total_tokens = token_usage.get('total_tokens', 0)
-                elif hasattr(response, 'metadata') and 'token_usage' in response.metadata:
-                    token_usage = response.metadata['token_usage']
-                    prompt_tokens = token_usage.get('prompt_tokens', 0)
-                    completion_tokens = token_usage.get('completion_tokens', 0)
-                    total_tokens = token_usage.get('total_tokens', 0)
-                else:
-                    # 如果没有token信息，使用简单的估算方法
-                    # 注意：这个估算可能不准确，仅作为备选方案
-                    import tiktoken
-                    try:
-                        # 使用tiktoken库估算token数量（如果可用）
-                        encoding = tiktoken.get_encoding("cl100k_base")  # GPT-4的编码方案
-                        prompt_tokens = sum(len(encoding.encode(msg.content)) for msg in messages)
-                        completion_tokens = len(encoding.encode(response.content))
-                        total_tokens = prompt_tokens + completion_tokens
-                    except Exception:
-                        # 如果tiktoken不可用，使用字符数粗略估算（不太准确）
-                        prompt_text = " ".join(msg.content for msg in messages)
-                        prompt_tokens = len(prompt_text) // 4  # 粗略估算：4个字符约等于1个token
-                        completion_tokens = len(response.content) // 4
-                        total_tokens = prompt_tokens + completion_tokens
-                
-                # 粗略估算成本（基于常见的OpenAI定价，需要根据实际模型调整）
-                # 这里使用简化的定价模型，实际项目中应该根据具体模型和服务提供商调整
-                if self._llm_config.model and 'gpt-4' in self._llm_config.model.lower():
-                    cost = (prompt_tokens * 0.03 + completion_tokens * 0.06) / 1000
-                elif self._llm_config.model and 'gpt-3.5' in self._llm_config.model.lower():
-                    cost = (prompt_tokens * 0.0015 + completion_tokens * 0.002) / 1000
-                elif self._llm_config.model and 'glm-4' in self._llm_config.model.lower():
-                    # GLM-4的近似定价
-                    cost = (prompt_tokens * 0.01 + completion_tokens * 0.02) / 1000
+                # 计算成本
+                cost = self._calculate_cost(prompt_tokens, completion_tokens)
                 
                 # 构建响应对象
                 llm_response = LLMResponse(
@@ -294,40 +391,26 @@ class LLMClient(BaseLLMService):
                 logger.error(f"生成失败 (尝试 {attempt}/{max_retries}): {e}")
                 
                 # 根据错误类型处理
-                try:
-                    from langchain.schema.output_parser import OutputParserException
-                    if isinstance(e, OutputParserException):
-                        raise GenerationError(f"输出解析失败: {e}", model=self._llm_config.model)
-                except ImportError:
-                    # 如果无法导入OutputParserException，使用字符串匹配
-                    if 'OutputParserException' in str(type(e)):
-                        raise GenerationError(f"输出解析失败: {e}", model=self._llm_config.model)
+                self._handle_generation_error(e)
                 
-                if 'rate limit' in str(e).lower() or 'too many requests' in str(e).lower():
-                    # 速率限制错误，尝试重试
-                    retry_after = attempt * 2  # 指数退避
-                    logger.warning(f"速率限制，{retry_after}秒后重试")
-                    time.sleep(retry_after)
+                # 检查是否需要重试
+                retry_delay = self._get_retry_delay(e, attempt)
+                if retry_delay is not None:
+                    if attempt >= max_retries:
+                        # 达到最大重试次数
+                        raise GenerationError(
+                            f"生成失败，已达最大重试次数: {max_retries}",
+                            model=self._llm_config.model,
+                            attempt=attempt
+                        )
+                    logger.warning(f"请求失败，{retry_delay}秒后重试 (尝试 {attempt}/{max_retries})")
+                    time.sleep(retry_delay)
                     continue
-                elif 'authentication' in str(e).lower() or 'invalid api key' in str(e).lower():
-                    raise AuthenticationError(f"认证失败: {e}")
-                elif 'service unavailable' in str(e).lower() or 'server error' in str(e).lower():
-                    # 服务不可用，尝试重试
-                    retry_after = attempt
-                    logger.warning(f"服务不可用，{retry_after}秒后重试")
-                    time.sleep(retry_after)
-                    continue
-                elif attempt >= max_retries:
-                    # 达到最大重试次数
-                    raise GenerationError(
-                        f"生成失败，已达最大重试次数: {max_retries}",
-                        model=self._llm_config.model,
-                        attempt=attempt
-                    )
-                else:
-                    # 其他错误，尝试重试
-                    time.sleep(1)
-    
+                
+                # 不可重试的错误，直接抛出
+                raise
+
+
     def generate_batch(self, prompts: list, **kwargs) -> list[LLMResponse]:
         """批量生成文本响应
         
@@ -338,23 +421,28 @@ class LLMClient(BaseLLMService):
         Returns:
             list[LLMResponse]: 响应对象列表
         """
+        if not prompts:
+            logger.warning("批量请求列表为空")
+            return []
+        
         results = []
+        total_count = len(prompts)
         
         # 可以根据需要实现真正的并行批处理
         # 目前使用串行处理以简化错误处理
-        for i, prompt in enumerate(prompts):
+        for i, prompt in enumerate(prompts, 1):
             try:
-                logger.info(f"处理批量请求 {i+1}/{len(prompts)}")
+                logger.info(f"处理批量请求 {i}/{total_count}")
                 result = self.generate(prompt, **kwargs)
                 results.append(result)
             except Exception as e:
-                logger.error(f"批量请求 {i+1} 失败: {e}")
+                logger.error(f"批量请求 {i} 失败: {e}")
                 # 创建一个错误响应对象
                 error_response = LLMResponse(
                     content="",
                     metadata={
                         'error': str(e),
-                        'prompt_index': i,
+                        'prompt_index': i - 1,
                         'success': False
                     }
                 )
@@ -372,15 +460,12 @@ class LLMClient(BaseLLMService):
         Returns:
             LLMResponse: 响应对象
         """
-        # 提取生成参数
-        generate_kwargs = {}
-        template_kwargs = {}
+        # 预定义的生成参数
+        generate_params = {'system_prompt', 'temperature', 'max_tokens', 'model', 'max_retries'}
         
-        for key, value in kwargs.items():
-            if key in ['system_prompt', 'temperature', 'max_tokens', 'model', 'max_retries']:
-                generate_kwargs[key] = value
-            else:
-                template_kwargs[key] = value
+        # 分离生成参数和模板变量
+        generate_kwargs = {k: v for k, v in kwargs.items() if k in generate_params}
+        template_kwargs = {k: v for k, v in kwargs.items() if k not in generate_params}
         
         # 格式化提示词
         prompt = self._prompt_manager.format_prompt(prompt_name, **template_kwargs)
@@ -457,7 +542,7 @@ class LLMClient(BaseLLMService):
         清理资源
         """
         try:
-            if self._config_manager:
+            if hasattr(self, '_config_manager') and self._config_manager:
                 self._config_manager.remove_change_callback(self._on_config_change)
         except Exception:
             pass
