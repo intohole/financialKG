@@ -4,7 +4,7 @@
 from typing import List, Optional
 
 from app.core.base_service import BaseService
-from app.core.models import (
+from app.core.extract_models import (
     Entity,
     EntityResolutionResult,
     EntityComparisonResult,

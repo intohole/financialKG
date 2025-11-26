@@ -4,7 +4,7 @@
 """
 
 # 导出抽象基类
-from app.vector.base import VectorSearchBase
+from app.vector.vector_search_abstract import VectorSearchBase
 
 # 导出Chroma实现
 from app.vector.chroma_vector_search import ChromaVectorSearch
@@ -37,20 +37,6 @@ __all__ = [
     "VectorSearchBase",
     "ChromaVectorSearch",
     "VectorSearchService",
-    
-    # 异常类
-    "VectorSearchError",
-    "IndexNotFoundError",
-    "DimensionMismatchError",
-    "ConnectionError",
-    "QueryError",
-    "InsertionError",
-    "DeletionError",
-    "UpdateError",
-    "ConfigurationError",
-    "AuthenticationError",
-    "RateLimitError",
-    "TimeoutError"
 ]
 
 # 模块初始化日志

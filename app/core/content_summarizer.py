@@ -5,7 +5,7 @@ import re
 from typing import List, Dict, Any, Optional
 
 from app.core.base_service import BaseService
-from app.core.models import ContentSummary
+from app.core.extract_models import ContentSummary
 from app.llm.llm_service import LLMService
 from app.utils.logging_utils import get_logger
 

@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.knowledge_graph_service import KnowledgeGraphService
-from app.core.models import KnowledgeExtractionResult, ContentClassification
+from app.core.extract_models import KnowledgeExtractionResult, ContentClassification
 
 
 async def test_knowledge_extraction():

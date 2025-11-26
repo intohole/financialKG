@@ -5,20 +5,18 @@
 基于配置文件动态设置日志级别和格式
 """
 
-import json
+import functools
 import logging
 import logging.config
-import traceback
+import threading
 import time
-import functools
-from typing import Any, Dict, Optional, Union, Callable, List
+import traceback
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-import threading
-from contextlib import contextmanager
+from typing import Any, Dict, Optional, Callable
 
-# 延迟导入 ConfigManager 以避免循环依赖
-# from app.config.config_manager import ConfigManager
+
 
 
 class ProjectLoggerAdapter(logging.LoggerAdapter):
@@ -260,6 +258,7 @@ class LoggingManager:
     """
     
     def __init__(self):
+        from app.config import ConfigManager
         self._config_manager: Optional[ConfigManager] = None
         self._loggers: Dict[str, ProjectLoggerAdapter] = {}
         self._lock = threading.Lock()

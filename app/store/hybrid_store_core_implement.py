@@ -23,7 +23,7 @@ from app.exceptions.store_exceptions import StoreError
 from app.store.store_base_abstract import StoreBase, Entity, Relation, NewsEvent, SearchResult, StoreConfig
 from app.store.store_data_convert import DataConverter
 from app.store.vector_index_manage import VectorIndexManager
-from app.vector.base import VectorSearchBase
+from app.vector.vector_search_abstract import VectorSearchBase
 from app.embedding import EmbeddingService
 from app.utils.logging_utils import get_logger
 

@@ -4,7 +4,7 @@ HybridStore主模块 - 保持向后兼容
 
 from app.database.manager import DatabaseManager
 from app.store.hybrid_store_core_implement import HybridStoreCore
-from app.vector.base import VectorSearchBase
+from app.vector.vector_search_abstract import VectorSearchBase
 from app.embedding import EmbeddingService
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional

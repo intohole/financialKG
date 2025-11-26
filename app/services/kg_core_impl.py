@@ -8,7 +8,7 @@ from app.core.base_service import BaseService
 from app.core.content_summarizer import ContentSummarizer
 from app.core.content_processor import ContentProcessor
 from app.core.entity_analyzer import EntityAnalyzer
-from app.core.models import Entity, Relation, KnowledgeGraph
+from app.core.extract_models import Entity, Relation, KnowledgeGraph
 from app.store import HybridStoreCore
 from app.config.config_manager import ConfigManager
 from app.services.kg_core_abstract import KGCoreAbstractService

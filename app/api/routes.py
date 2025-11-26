@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from app.core.content_processor import ContentProcessor
 from app.core.entity_analyzer import EntityAnalyzer
 from app.core.content_summarizer import ContentSummarizer
-from app.core.models import Entity
+from app.core.extract_models import Entity
 
 
 # 创建API路由

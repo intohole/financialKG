@@ -4,7 +4,7 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional
 
 
 class VectorSearchBase(ABC):

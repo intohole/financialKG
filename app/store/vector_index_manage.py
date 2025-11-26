@@ -15,7 +15,7 @@
 from typing import List, Dict, Any, Optional
 
 from app.exceptions.store_exceptions import StoreError
-from app.vector.base import VectorSearchBase
+from app.vector.vector_search_abstract import VectorSearchBase
 from app.exceptions import IndexNotFoundError
 from app.embedding import EmbeddingService
 from app.utils.logging_utils import get_logger

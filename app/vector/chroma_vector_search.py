@@ -3,17 +3,13 @@
 提供Chroma向量数据库的操作接口
 """
 
-import os
 import asyncio
-from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
+from typing import List, Dict, Any, Optional
 
 import chromadb
 from chromadb.config import Settings
-from chromadb.utils import embedding_functions
-from pydantic_settings import BaseSettings
 
-from app.vector.base import VectorSearchBase
 from app.exceptions.vector_exceptions import (
     IndexNotFoundError,
     IndexAlreadyExistsError,
@@ -26,7 +22,7 @@ from app.exceptions.vector_exceptions import (
     MetadataError
 )
 from app.utils.logging_utils import get_logger
-
+from app.vector.vector_search_abstract import VectorSearchBase
 
 logger = get_logger(__name__)
 

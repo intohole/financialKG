@@ -17,7 +17,7 @@
 from typing import List, Optional, Dict
 
 from app.core.base_service import BaseService
-from app.core.models import (
+from app.core.extract_models import (
     ContentClassification,
     ContentClassificationResult,
     Entity,

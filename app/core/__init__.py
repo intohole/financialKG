@@ -4,7 +4,7 @@
 from app.core.content_processor import ContentProcessor
 from app.core.entity_analyzer import EntityAnalyzer
 from app.core.content_summarizer import ContentSummarizer
-from app.core.models import (
+from app.core.extract_models import (
     ContentClassificationResult,
     ContentSummary,
     Entity,
