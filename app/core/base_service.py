@@ -66,7 +66,7 @@ class BaseService(ABC):
             
             # 调用大模型
             logger.info(f"开始LLM调用: {prompt_key}")
-            response_obj = await self.llm_service.async_generate(formatted_prompt)
+            response_obj =  self.llm_service.generate(formatted_prompt)
             response = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
             
             if not response:

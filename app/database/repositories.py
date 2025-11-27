@@ -190,6 +190,40 @@ class RelationRepository(BaseRepository):
             logger.error(f"获取三元组失败: {e}")
             raise DatabaseError(f"获取三元组失败: {e}")
     
+    async def exists_by_triplet(self, subject_id: int, predicate: str, object_id: int) -> bool:
+        """检查三元组是否已存在 - 用于避免唯一约束冲突"""
+        try:
+            from .models import Relation
+            stmt = select(Relation).where(
+                and_(
+                    Relation.subject_id == subject_id,
+                    Relation.predicate == predicate,
+                    Relation.object_id == object_id
+                )
+            )
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none() is not None
+        except SQLAlchemyError as e:
+            logger.error(f"检查三元组存在性失败: {e}")
+            raise DatabaseError(f"检查三元组存在性失败: {e}")
+    
+    async def get_by_triplet(self, subject_id: int, predicate: str, object_id: int):
+        """根据三元组获取关系"""
+        try:
+            from .models import Relation
+            stmt = select(Relation).where(
+                and_(
+                    Relation.subject_id == subject_id,
+                    Relation.predicate == predicate,
+                    Relation.object_id == object_id
+                )
+            )
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
+        except SQLAlchemyError as e:
+            logger.error(f"根据三元组获取关系失败: {e}")
+            raise DatabaseError(f"根据三元组获取关系失败: {e}")
+    
     async def update_entity_references(self, old_entity_id: int, new_entity_id: int) -> bool:
         """更新实体引用 - 实体合并时的关键操作"""
         try:

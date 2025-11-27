@@ -258,8 +258,7 @@ class LoggingManager:
     """
     
     def __init__(self):
-        from app.config import ConfigManager
-        self._config_manager: Optional[ConfigManager] = None
+        self._config_manager = None
         self._loggers: Dict[str, ProjectLoggerAdapter] = {}
         self._lock = threading.Lock()
         self._initialized = False
@@ -270,6 +269,7 @@ class LoggingManager:
         Args:
             config_manager: 配置管理器实例
         """
+
         with self._lock:
             if self._initialized:
                 return

@@ -335,7 +335,7 @@ class HybridStoreCore(StoreBase):
             relation: 要创建的关系对象
             
         Returns:
-            Relation: 创建后的关系对象
+            Relation: 创建后的关系对象或已存在的关系对象
             
         Raises:
             StoreError: 创建失败
@@ -343,6 +343,23 @@ class HybridStoreCore(StoreBase):
         try:
             async with self.db_manager.get_session() as session:
                 relation_repository = RelationRepository(session)
+                
+                # 首先检查关系是否已存在
+                existing_relation = await relation_repository.get_by_triplet(
+                    relation.subject_id, relation.predicate, relation.object_id
+                )
+                
+                if existing_relation:
+                    logger.info(f"关系已存在，跳过创建: {relation.subject_id} -> {relation.predicate} -> {relation.object_id}")
+                    # 如果描述不同，可以选择更新描述
+                    if relation.description and relation.description != existing_relation.description:
+                        existing_relation.description = relation.description
+                        await session.flush()
+                        logger.info(f"更新已存在关系的描述: {existing_relation.id}")
+                    
+                    return self.data_converter.db_relation_to_relation(existing_relation)
+                
+                # 关系不存在，创建新关系
                 db_relation_data = self.data_converter.relation_to_db_relation(relation)
                 created_relation = await relation_repository.create(db_relation_data)
                 

@@ -144,7 +144,7 @@ class EntityAnalyzer(BaseService):
                 raise ValueError("无法从响应中提取有效数据")
             
             # 验证必需字段
-            required_fields = ['selected_entity', 'confidence', 'reasoning']
+            required_fields = ['reasoning']
             if not self.validate_response_data(data, required_fields):
                 raise ValueError("响应缺少必需字段")
             
@@ -170,7 +170,7 @@ class EntityAnalyzer(BaseService):
             
             return EntityResolutionResult(
                 selected_entity=selected_entity,
-                confidence=data.get('confidence', 0.0),
+                confidence=data.get('confidence', 0.95),
                 reasoning=data.get('reasoning', '')
             )
             

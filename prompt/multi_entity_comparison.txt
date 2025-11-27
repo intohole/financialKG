@@ -18,22 +18,22 @@
 
 示例输出：
 ```json
-{
+{{
   "comparisons": [
-    {
+    {{
       "entity1": "苹果公司",
       "entity2": "Apple Inc.",
       "similarity": 0.95,
       "is_same": true,
       "reasoning": "指代同一家公司，中英文名称"
-    },
-    {
+    }},
+    {{
       "entity1": "苹果",
       "entity2": "香蕉",
       "similarity": 0.1,
       "is_same": false,
       "reasoning": "完全不同的水果种类"
-    }
+    }}
   ]
-}
+}}
 ```
