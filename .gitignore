@@ -174,3 +174,10 @@ logs/
 
 *.db
 data/chroma*
+
+# Chroma vector database storage
+data/test_real_chroma/
+data/chroma*/
+*.bin
+chroma.sqlite3
+chroma.sqlite3-journal
