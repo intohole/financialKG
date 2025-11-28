@@ -212,7 +212,6 @@ class ContentClassificationResult:
     category: str
     confidence: float
     reasoning: Optional[str] = None
-    is_financial_content: bool = False
     supported: bool = True
     
     def to_dict(self) -> Dict[str, Any]:
@@ -221,7 +220,6 @@ class ContentClassificationResult:
             "category": self.category,
             "confidence": self.confidence,
             "reasoning": self.reasoning,
-            "is_financial_content": self.is_financial_content,
             "supported": self.supported
         }
 

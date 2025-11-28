@@ -70,34 +70,14 @@ def extract_json_fallback(text: str) -> Optional[Dict[str, Any]]:
     Returns:
         解析后的 Python 字典，如果提取失败则返回 None。
     """
-    import re
-    
-    # 尝试匹配 ```json 和 ``` 之间的内容
-    json_pattern = r'```json\s*([\s\S]*?)\s*```'
-    match = re.search(json_pattern, text)
-    
-    if match:
-        json_str = match.group(1)
+    if text:
+        text = text[text.find("{"):text.rfind("}")+1]
+        text = text.replace("\\n", "")
         try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"手动JSON解析失败: {e}")
-            return None
-    
-    # 尝试匹配 { 和 } 之间的内容
-    brace_pattern = r'\{[\s\S]*\}'
-    match = re.search(brace_pattern, text)
-    
-    if match:
-        json_str = match.group(0)
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            logger.error(f"大括号JSON解析失败: {e}")
-            return None
-    
+            return json.loads(text)
+        except json.JSONDecodeError:
+            raise ValueError("JSON 解析失败")
     return None
-
 
 def extract_json_robust(text: str) -> Optional[Dict[str, Any]]:
     """

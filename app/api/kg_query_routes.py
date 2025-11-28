@@ -8,7 +8,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from app.services.kg_query_service import KGQueryService
-from app.database.manager import DatabaseManager
+from app.database.manager import get_session
 from app.utils.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -17,12 +17,28 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/kg", tags=["知识图谱查询"])
 
 
-# ==================== 依赖注入 ====================
+# ==================== 依赖注入和工具函数 ====================
 
 async def get_query_service() -> KGQueryService:
     """获取查询服务实例"""
-    session = await DatabaseManager.get_session()
-    return KGQueryService(session)
+    async for session in get_session():
+        return KGQueryService(session)
+
+
+async def handle_service_exception(operation: str, e: Exception) -> None:
+    """统一处理服务层异常"""
+    logger.error(f"{operation}失败: {e}", extra={
+        "operation": operation,
+        "error_type": type(e).__name__,
+        "error_message": str(e)
+    })
+    
+    if isinstance(e, HTTPException):
+        raise e
+    elif isinstance(e, ValueError):
+        raise HTTPException(status_code=400, detail=f"{operation}参数错误: {str(e)}")
+    else:
+        raise HTTPException(status_code=500, detail=f"{operation}失败: {str(e)}")
 
 
 # ==================== 实体相关API ====================
@@ -47,8 +63,10 @@ async def get_entities(
     - page_size: 每页数量
     - total_pages: 总页数
     """
+    logger.info(f"获取实体列表: page={page}, page_size={page_size}, search={search}, entity_type={entity_type}")
+    
     try:
-        return await query_service.get_entity_list(
+        result = await query_service.get_entity_list(
             page=page,
             page_size=page_size,
             search=search,
@@ -56,14 +74,15 @@ async def get_entities(
             sort_by=sort_by,
             sort_order=sort_order
         )
+        logger.info(f"成功获取实体列表: {result['total']}个实体")
+        return result
     except Exception as e:
-        logger.error(f"获取实体列表失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取实体列表失败: {str(e)}")
+        await handle_service_exception("获取实体列表", e)
 
 
 @router.get("/entities/{entity_id}", summary="获取实体详细信息")
 async def get_entity_detail(
-    entity_id: int = Query(..., description="实体ID"),
+    entity_id: int,
     query_service: KGQueryService = Depends(get_query_service)
 ):
     """
@@ -73,16 +92,19 @@ async def get_entity_detail(
     - 基本信息：名称、类型、描述等
     - 统计信息：关系数量、新闻数量、属性数量
     """
+    logger.info(f"获取实体详情: entity_id={entity_id}")
+    
     try:
         result = await query_service.get_entity_detail(entity_id)
         if not result:
+            logger.warning(f"实体不存在: entity_id={entity_id}")
             raise HTTPException(status_code=404, detail="实体不存在")
+        logger.info(f"成功获取实体详情: {result['name']}")
         return result
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取实体详情失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取实体详情失败: {str(e)}")
+        await handle_service_exception("获取实体详情", e)
 
 
 # ==================== 关系相关API ====================
@@ -118,7 +140,7 @@ async def get_relations(
 
 @router.get("/entities/{entity_id}/neighbors", summary="获取实体邻居网络")
 async def get_entity_neighbors(
-    entity_id: int = Query(..., description="实体ID"),
+    entity_id: int,
     depth: int = Query(2, ge=1, le=5, description="遍历深度"),
     relation_types: Optional[List[str]] = Query(None, description="关系类型过滤"),
     max_entities: int = Query(100, ge=1, le=500, description="最大实体数量"),
@@ -155,7 +177,7 @@ async def get_entity_neighbors(
 
 @router.get("/entities/{entity_id}/news", summary="获取实体关联的新闻")
 async def get_entity_news(
-    entity_id: int = Query(..., description="实体ID"),
+    entity_id: int,
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(10, ge=1, le=50, description="每页数量"),
     start_date: Optional[datetime] = Query(None, description="开始日期"),
@@ -207,7 +229,7 @@ async def get_common_news_for_entities(
 
 @router.get("/news/{news_id}/entities", summary="获取新闻相关的实体")
 async def get_news_entities(
-    news_id: int = Query(..., description="新闻ID"),
+    news_id: int,
     entity_type: Optional[str] = Query(None, description="实体类型过滤"),
     limit: int = Query(50, ge=1, le=200, description="返回实体数量限制"),
     query_service: KGQueryService = Depends(get_query_service)

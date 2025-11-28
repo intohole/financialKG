@@ -104,12 +104,15 @@ class DatabaseManager:
         session = AsyncSession(self.engine, expire_on_commit=False)
         try:
             yield session
-            await session.commit()
+            if session.is_active:
+                await session.commit()
         except Exception:
-            await session.rollback()
+            if session.is_active:
+                await session.rollback()
             raise
         finally:
-            await session.close()
+            if session.is_active:
+                await session.close()
     
     async def close(self):
         """关闭数据库连接"""

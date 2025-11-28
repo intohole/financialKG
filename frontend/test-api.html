@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API测试 - 知识图谱</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .test-section h3 { margin-top: 0; color: #333; }
+        .btn { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; background: #409eff; color: white; }
+        .btn:hover { background: #66b1ff; }
+        .result { margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 300px; overflow-y: auto; }
+        .success { background: #f0f9ff; border-left: 4px solid #67c23a; }
+        .error { background: #fef0f0; border-left: 4px solid #f56c6c; }
+        .loading { background: #f4f4f4; border-left: 4px solid #909399; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>知识图谱 API 测试</h1>
+        
+        <div class="test-section">
+            <h3>1. 基础连接测试</h3>
+            <button class="btn" onclick="testConnection()">测试连接</button>
+            <div id="connection-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. 实体查询测试</h3>
+            <button class="btn" onclick="testEntities()">查询实体列表</button>
+            <div id="entities-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. 内容处理测试</h3>
+            <button class="btn" onclick="testProcessContent()">处理示例内容</button>
+            <div id="content-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. 图谱数据测试</h3>
+            <button class="btn" onclick="testGraphData()">加载图谱数据</button>
+            <div id="graph-result" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>5. 实体详情测试</h3>
+            <button class="btn" onclick="testEntityDetail()">获取实体详情</button>
+            <div id="detail-result" class="result"></div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script>
+        const API_BASE = API_CONFIG.BASE_URL;
+        
+        function showResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.className = `result ${type}`;
+            element.textContent = typeof content === 'object' ? JSON.stringify(content, null, 2) : content;
+        }
+        
+        async function testConnection() {
+            showResult('connection-result', '连接中...', 'loading');
+            try {
+                const response = await fetch(API_BASE + '/');
+                const data = await response.json();
+                showResult('connection-result', data, 'success');
+            } catch (error) {
+                showResult('connection-result', `连接失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testEntities() {
+            showResult('entities-result', '查询中...', 'loading');
+            try {
+                const response = await fetch(API_BASE + '/api/kg/entities?page=1&page_size=5');
+                const data = await response.json();
+                showResult('entities-result', data, 'success');
+            } catch (error) {
+                showResult('entities-result', `查询失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testProcessContent() {
+            showResult('content-result', '处理中...', 'loading');
+            try {
+                const response = await fetch(API_BASE + '/api/kg/process-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: "苹果公司CEO蒂姆·库克今天发布了新款iPhone 15 Pro手机。"
+                    })
+                });
+                const data = await response.json();
+                showResult('content-result', data, 'success');
+            } catch (error) {
+                showResult('content-result', `处理失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testGraphData() {
+            showResult('graph-result', '加载中...', 'loading');
+            try {
+                const entitiesResponse = await fetch(API_BASE + '/api/kg/entities?page=1&page_size=10');
+                const entities = await entitiesResponse.json();
+                
+                if (entities.items && entities.items.length > 0) {
+                    const firstEntity = entities.items[0];
+                    const neighborsResponse = await fetch(API_BASE + `/api/kg/entities/${firstEntity.id}/neighbors?depth=2&max_entities=5`);
+                    const neighbors = await neighborsResponse.json();
+                    
+                    showResult('graph-result', {
+                        entities: entities.items.slice(0, 3),
+                        neighbors: neighbors
+                    }, 'success');
+                } else {
+                    showResult('graph-result', '没有找到实体', 'error');
+                }
+            } catch (error) {
+                showResult('graph-result', `加载失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testEntityDetail() {
+            showResult('detail-result', '获取中...', 'loading');
+            try {
+                const entitiesResponse = await fetch(API_BASE + '/api/kg/entities?page=1&page_size=1');
+                const entities = await entitiesResponse.json();
+                
+                if (entities.items && entities.items.length > 0) {
+                    const firstEntity = entities.items[0];
+                    const detailResponse = await fetch(API_BASE + `/api/kg/entities/${firstEntity.id}`);
+                    const detail = await detailResponse.json();
+                    
+                    showResult('detail-result', detail, 'success');
+                } else {
+                    showResult('detail-result', '没有找到实体', 'error');
+                }
+            } catch (error) {
+                showResult('detail-result', `获取失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 页面加载后自动测试连接
+        window.addEventListener('load', function() {
+            setTimeout(testConnection, 1000);
+        });
+    </script>
+</body>
+</html>

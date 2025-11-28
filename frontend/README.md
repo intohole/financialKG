@@ -1,222 +1,198 @@
-# 知识图谱可视化前端
+# 知识图谱管理系统前端
 
-基于知识图谱API构建的轻量级可视化前端，提供实体管理、关系分析和网络可视化功能。
+基于现代Web技术构建的轻量级知识图谱管理前端应用，采用国内CDN加速的开源库，确保在中国网络环境下的良好访问体验。
 
-## 功能特性
+## 🚀 技术栈
 
-### 📝 内容处理
-- **智能文本分析**: 自动提取文本中的实体和关系
-- **实时处理反馈**: 显示处理进度和结果统计
-- **分类识别**: 自动识别内容类别（科技、商业等）
+### 核心框架
+- **Vue.js 3** - 渐进式JavaScript框架
+- **Element Plus** - Vue 3组件库，提供丰富的UI组件
+- **Tailwind CSS** - 实用优先的CSS框架
 
-### 🔍 实体管理
-- **实体搜索**: 支持按名称、类型搜索实体
-- **实体卡片**: 美观的实体展示卡片，包含类型、描述和统计信息
-- **实体详情**: 点击查看实体详细信息，包括关联统计
-- **分页浏览**: 支持分页浏览大量实体数据
+### 数据可视化
+- **D3.js v7** - 强大的数据可视化库，用于图网络展示
 
-### 🔗 关系分析
-- **关系列表**: 展示实体间的关联关系
-- **关系类型**: 支持多种关系类型展示（开发、生产、拥有等）
-- **置信度显示**: 显示关系抽取的置信度
-- **时间排序**: 按创建时间排序关系
+### HTTP通信
+- **Axios** - 基于Promise的HTTP客户端
 
-### 🌐 网络可视化
-- **交互式网络图**: 基于SVG的力导向图可视化
-- **实体网络**: 展示实体间的复杂关联网络
-- **节点交互**: 支持节点点击、悬停高亮
-- **动态布局**: 自动计算最优节点布局
+### 国内CDN资源
+所有外部依赖均使用国内可访问的CDN资源：
+- unpkg.com (全球CDN，国内访问稳定)
+- cdn.tailwindcss.com (官方CDN)
+- d3js.org (官方CDN)
 
-## 技术架构
-
-### 前端技术栈
-- **原生JavaScript**: 无需框架依赖，轻量级实现
-- **模块化设计**: 采用ES6类模块化组织代码
-- **响应式布局**: 适配移动端和桌面端
-- **现代CSS**: 使用CSS变量和现代布局技术
-
-### 核心组件
-
-#### API封装层 (`js/api.js`)
-```javascript
-// API请求封装
-class KGAPI {
-    async processContent(content) // 处理内容
-    async getEntities(params)    // 获取实体列表
-    async getEntityDetail(id)    // 获取实体详情
-    async getRelations(params)   // 获取关系列表
-    async getEntityNeighbors(id) // 获取实体邻居网络
-}
-```
-
-#### UI组件库 (`js/components.js`)
-```javascript
-// 核心UI组件
-class EntityCard      // 实体卡片组件
-class RelationCard    // 关系卡片组件
-class NetworkGraph    // 网络图组件
-class Pagination      // 分页组件
-class SearchBox       // 搜索框组件
-class Modal           // 模态框组件
-class Notification    // 通知组件
-```
-
-#### 主应用 (`js/app.js`)
-```javascript
-// 应用主类
-class KGApplication {
-    switchPanel(panel)     // 面板切换
-    processContent()      // 内容处理
-    loadEntities()        // 实体加载
-    loadRelations()       // 关系加载
-    showEntityNetwork()   // 网络展示
-}
-```
-
-## 文件结构
+## 📁 项目结构
 
 ```
 frontend/
-├── index.html              # 主页面
-├── css/
-│   ├── main.css           # 主样式
-│   ├── components.css      # 组件样式
-│   └── responsive.css     # 响应式样式
-├── js/
-│   ├── api.js             # API封装
-│   ├── components.js      # UI组件
-│   └── app.js             # 主应用逻辑
-└── README.md              # 文档
+├── index.html          # 主页面
+├── app.js             # Vue应用主脚本
+├── styles.css         # 自定义样式
+└── README.md          # 项目文档
 ```
 
-## 快速开始
+## 🎯 核心功能
 
-### 1. 启动后端服务
-确保后端API服务运行在 `http://localhost:8001`
+### 1. 内容处理与知识图谱构建
+- 支持文本内容输入和处理
+- 自动提取实体和关系
+- 实时展示处理结果
 
-### 2. 打开前端页面
-使用现代浏览器直接打开 `index.html` 文件，或使用本地服务器：
+### 2. 实体管理与查询
+- 实体列表展示和搜索
+- 支持按类型过滤
+- 实体详情查看
+- 相关新闻展示
+
+### 3. 知识图谱可视化
+- 交互式图网络展示
+- 支持拖拽和缩放
+- 不同实体类型颜色区分
+- 关系类型标注
+
+### 4. 响应式设计
+- 适配桌面端和移动端
+- 优雅的交互体验
+- 加载状态提示
+
+## 🔧 快速开始
+
+### 环境要求
+- 现代浏览器（Chrome、Firefox、Safari、Edge）
+- 后端API服务运行在 `http://localhost:8001`
+
+### 部署步骤
+
+1. **启动后端服务**
+   ```bash
+   cd /Users/intoblack/workspace/graph
+   python -m venv venv
+   source venv/bin/activate  # macOS/Linux
+   pip install -r requirements.txt
+   uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+   ```
+
+2. **启动前端服务**
+   ```bash
+   cd frontend
+   python3 -m http.server 8081
+   ```
+
+3. **访问应用**
+   打开浏览器访问 `http://localhost:8081`
+
+### 开发模式
+
+由于使用了CDN资源，无需安装npm包，直接编辑文件即可看到效果：
 
 ```bash
-# 使用Python简单HTTP服务器
+# 启动本地开发服务器
 cd frontend
-python -m http.server 8080
+python3 -m http.server 8081
 
-# 或使用Node.js http-server
-npx http-server -p 8080
+# 或者使用Node.js的http-server
+npx http-server -p 8081
 ```
 
-### 3. 访问应用
-打开浏览器访问 `http://localhost:8080`
+## 📋 API接口说明
 
-## 使用指南
+前端应用与后端API的交互接口：
 
 ### 内容处理
-1. 在"内容处理"面板输入文本内容
-2. 点击"处理内容"按钮
-3. 查看提取的实体和关系结果
+- `POST /api/kg/process-content` - 处理文本内容并构建知识图谱
 
 ### 实体管理
-1. 切换到"实体管理"面板
-2. 使用搜索框搜索特定实体
-3. 点击实体卡片查看详情
-4. 点击"查看网络"按钮查看实体关系网络
+- `GET /api/kg/entities` - 获取实体列表（支持分页、搜索、过滤）
+- `GET /api/kg/entities/{id}` - 获取实体详细信息
+- `GET /api/kg/entities/{id}/news` - 获取实体关联的新闻
+- `GET /api/kg/entities/{id}/neighbors` - 获取实体邻居网络
 
-### 网络分析
-1. 切换到"网络分析"面板
-2. 在搜索框输入实体名称
-3. 查看实体的关联网络图
-4. 点击节点查看实体详情
+### 关系管理
+- `GET /api/kg/relations` - 获取关系列表
 
-## API接口
+### 统计分析
+- `GET /api/kg/statistics/overview` - 获取知识图谱概览统计
 
-前端与后端通过以下API接口通信：
+## 🎨 设计特点
 
-| 接口 | 方法 | 描述 |
-|------|------|------|
-| `/api/kg/process-content` | POST | 处理内容，提取实体和关系 |
-| `/api/kg/entities` | GET | 获取实体列表 |
-| `/api/kg/entities/{id}` | GET | 获取实体详情 |
-| `/api/kg/relations` | GET | 获取关系列表 |
-| `/api/kg/entities/{id}/neighbors` | GET | 获取实体邻居网络 |
-
-## 设计规范
-
-### 大厂前端规范遵循
-- **组件化**: 高度模块化的组件设计
-- **一致性**: 统一的视觉风格和交互模式
-- **可维护性**: 清晰的代码结构和注释
-- **性能优化**: 防抖、缓存、请求队列优化
-- **错误处理**: 完善的错误处理和用户反馈
-
-### 响应式设计
-- **移动端优先**: 基于移动设备设计，向上适配
-- **弹性布局**: 使用Flexbox和Grid布局
-- **断点设计**: 针对平板、桌面、大屏的适配
-- **触摸优化**: 适配触摸操作的交互设计
+### 用户体验
+- 简洁直观的界面设计
+- 清晰的功能分区
+- 实时反馈和状态提示
+- 错误处理和恢复机制
 
 ### 性能优化
-- **防抖处理**: 搜索输入防抖优化
-- **请求缓存**: API响应缓存机制
-- **请求队列**: 防止重复请求
-- **懒加载**: 按需加载数据和组件
+- 虚拟滚动处理大量数据
+- 懒加载和分页机制
+- CDN加速资源加载
+- 防抖和节流优化
 
-## 浏览器兼容性
+### 可访问性
+- 语义化HTML结构
+- 键盘导航支持
+- 屏幕阅读器友好
+- 高对比度颜色方案
 
-- Chrome 60+
-- Firefox 55+
-- Safari 11+
-- Edge 79+
+## 🔍 浏览器兼容性
 
-## 开发说明
+| 浏览器 | 最低版本 | 备注 |
+|--------|----------|------|
+| Chrome | 80+ | 推荐使用 |
+| Firefox | 75+ | 完全支持 |
+| Safari | 13+ | 完全支持 |
+| Edge | 80+ | 完全支持 |
 
-### 扩展组件
-按照以下模式创建新组件：
+## 📱 移动端适配
 
-```javascript
-class NewComponent {
-    constructor(options = {}) {
-        this.options = { ...options };
-        this.element = this.createElement();
-    }
-    
-    createElement() {
-        // 创建DOM元素
-    }
-    
-    render() {
-        return this.element;
-    }
-}
-```
+- 响应式布局设计
+- 触摸友好的交互
+- 适配小屏幕显示
+- 优化的移动端性能
 
-### 添加新面板
-1. 在HTML中添加面板结构
-2. 在CSS中添加对应样式
-3. 在JS中添加面板逻辑
-4. 更新导航和路由处理
+## 🔒 安全考虑
 
-### 自定义样式
-使用CSS变量进行主题定制：
+- 所有外部资源使用HTTPS
+- 输入验证和XSS防护
+- API请求超时处理
+- 错误信息脱敏
 
-```css
-:root {
-    --primary-color: #3498db;
-    --secondary-color: #2ecc71;
-    --danger-color: #e74c3c;
-    --warning-color: #f39c12;
-    --info-color: #9b59b6;
-}
-```
+## 🐛 常见问题
 
-## 贡献指南
+### Q: 后端API连接失败怎么办？
+A: 确保后端服务已启动并运行在 `http://localhost:8001`，检查网络连接和防火墙设置。
 
-1. 遵循现有代码风格和结构
-2. 添加必要的注释和文档
-3. 测试所有功能模块
-4. 确保响应式兼容性
-5. 优化性能和用户体验
+### Q: 图可视化显示异常？
+A: 清除浏览器缓存，检查浏览器控制台是否有错误信息，确保D3.js库正确加载。
 
-## 许可证
+### Q: 如何处理大量数据？
+A: 应用内置了分页和懒加载机制，对于超大数据集可以调整分页参数或使用服务器端分页。
 
-MIT License - 详见项目根目录LICENSE文件
+## 📚 相关资源
+
+- [Vue.js 3 官方文档](https://v3.cn.vuejs.org/)
+- [Element Plus 组件库](https://element-plus.org/zh-CN/)
+- [D3.js 数据可视化](https://d3js.org/)
+- [Tailwind CSS 框架](https://tailwindcss.com/)
+
+## 🤝 贡献指南
+
+欢迎提交Issue和Pull Request来改进项目。在提交前请确保：
+
+1. 代码符合项目规范
+2. 通过基本功能测试
+3. 更新相关文档
+4. 遵循开源协议
+
+## 📄 许可证
+
+本项目采用MIT许可证，详见项目根目录的LICENSE文件。
+
+## 📞 联系方式
+
+如有问题或建议，请通过以下方式联系：
+- 提交GitHub Issue
+- 发送邮件至项目维护者
+
+---
+
+**注意**: 本项目为演示性质，生产环境使用前请进行充分的测试和安全评估。

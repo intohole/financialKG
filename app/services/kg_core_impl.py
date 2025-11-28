@@ -302,6 +302,12 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                     selected_entity = ambiguity_result.selected_entity
                     logger.info(f"实体 '{entity.name}' 与选中实体 '{selected_entity.name}' 匹配 (置信度: {ambiguity_result.confidence})")
                     processed_entities[entity.name] = selected_entity
+                else:
+                    # 如果没有选中的实体，创建新实体
+                    logger.info(f"未选中任何候选实体，将创建新实体: '{entity.name}'")
+                    stored_entity = await self.store.create_entity(entity)
+                    logger.info(f"成功存储新实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
+                    processed_entities[entity.name] = stored_entity
 
             except Exception as e:
                 logger.error(f"处理实体 '{entity.name}' 失败: {e}")

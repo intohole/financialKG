@@ -80,7 +80,7 @@ class KGQueryService:
                     )
                 )
             if entity_type:
-                conditions.append(Entity.entity_type == entity_type)
+                conditions.append(Entity.type == entity_type)
             
             if conditions:
                 stmt = stmt.where(and_(*conditions))
@@ -113,12 +113,12 @@ class KGQueryService:
                 items.append({
                     "id": entity.id,
                     "name": entity.name,
-                    "entity_type": entity.entity_type,
+                    "entity_type": entity.type,
                     "description": entity.description,
                     "created_at": entity.created_at.isoformat() if entity.created_at else None,
                     "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
-                    "confidence": entity.confidence,
-                    "source_text": entity.source_text[:200] + "..." if entity.source_text and len(entity.source_text) > 200 else entity.source_text
+                    "confidence": getattr(entity, 'confidence', None),
+                    "source_text": getattr(entity, 'source_text', '')[:200] + "..." if getattr(entity, 'source_text', None) and len(getattr(entity, 'source_text', '')) > 200 else getattr(entity, 'source_text', '')
                 })
             
             return {
@@ -157,13 +157,13 @@ class KGQueryService:
             return {
                 "id": entity.id,
                 "name": entity.name,
-                "entity_type": entity.entity_type,
+                "entity_type": entity.type,
                 "description": entity.description,
                 "created_at": entity.created_at.isoformat() if entity.created_at else None,
                 "updated_at": entity.updated_at.isoformat() if entity.updated_at else None,
-                "confidence": entity.confidence,
-                "source_text": entity.source_text,
-                "metadata": entity.metadata_,
+                "confidence": getattr(entity, 'confidence', None),
+                "source_text": getattr(entity, 'source_text', None),
+                "metadata": getattr(entity, 'meta_data', None),
                 "statistics": {
                     "relations_count": relations_count,
                     "news_count": news_count,
@@ -200,16 +200,19 @@ class KGQueryService:
         """
         try:
             # 构建查询，关联实体表获取名称
+            source_entity = Entity.__table__.alias('source_entity')
+            target_entity = Entity.__table__.alias('target_entity')
+            
             stmt = select(
                 Relation,
-                Entity.name.label("source_name"),
-                Entity.entity_type.label("source_type"),
-                Entity.name.label("target_name"),
-                Entity.entity_type.label("target_type")
+                source_entity.c.name.label("source_name"),
+                source_entity.c.type.label("source_type"),
+                target_entity.c.name.label("target_name"),
+                target_entity.c.type.label("target_type")
             ).join(
-                Entity, Relation.source_entity_id == Entity.id
+                source_entity, Relation.subject_id == source_entity.c.id
             ).join(
-                Entity, Relation.target_entity_id == Entity.id
+                target_entity, Relation.object_id == target_entity.c.id
             )
             
             # 应用过滤条件
@@ -217,16 +220,16 @@ class KGQueryService:
             if entity_id:
                 conditions.append(
                     or_(
-                        Relation.source_entity_id == entity_id,
-                        Relation.target_entity_id == entity_id
+                        Relation.subject_id == entity_id,
+                        Relation.object_id == entity_id
                     )
                 )
             if relation_type:
-                conditions.append(Relation.relation_type == relation_type)
+                conditions.append(Relation.predicate == relation_type)
             if search:
                 conditions.append(
                     or_(
-                        Relation.relation_type.ilike(f"%{search}%"),
+                        Relation.predicate.ilike(f"%{search}%"),
                         Relation.description.ilike(f"%{search}%")
                     )
                 )
@@ -254,17 +257,17 @@ class KGQueryService:
                 relation, source_name, source_type, target_name, target_type = row
                 items.append({
                     "id": relation.id,
-                    "relation_type": relation.relation_type,
+                    "relation_type": relation.predicate,
                     "description": relation.description,
-                    "confidence": relation.confidence,
+                    "confidence": getattr(relation, 'confidence', None),
                     "created_at": relation.created_at.isoformat() if relation.created_at else None,
                     "source_entity": {
-                        "id": relation.source_entity_id,
+                        "id": relation.subject_id,
                         "name": source_name,
                         "type": source_type
                     },
                     "target_entity": {
-                        "id": relation.target_entity_id,
+                        "id": relation.object_id,
                         "name": target_name,
                         "type": target_type
                     }
@@ -336,10 +339,10 @@ class KGQueryService:
                     
                     for relation in relations:
                         # 确定邻居实体ID
-                        if relation.source_entity_id == current_entity_id:
-                            neighbor_id = relation.target_entity_id
+                        if relation.subject_id == current_entity_id:
+                            neighbor_id = relation.object_id
                         else:
-                            neighbor_id = relation.source_entity_id
+                            neighbor_id = relation.subject_id
                         
                         # 如果邻居实体未访问过，添加到下一层
                         if neighbor_id not in visited_entities and len(visited_entities) < max_entities:
@@ -351,11 +354,11 @@ class KGQueryService:
                             visited_relations.add(relation.id)
                             edges.append({
                                 "id": relation.id,
-                                "source": relation.source_entity_id,
-                                "target": relation.target_entity_id,
-                                "relation_type": relation.relation_type,
+                                "source": relation.subject_id,
+                                "target": relation.object_id,
+                                "relation_type": relation.predicate,
                                 "description": relation.description,
-                                "confidence": relation.confidence
+                                "confidence": getattr(relation, 'confidence', None)
                             })
                 
                 current_level = next_level
@@ -370,9 +373,9 @@ class KGQueryService:
                     nodes.append({
                         "id": entity.id,
                         "name": entity.name,
-                        "entity_type": entity.entity_type,
+                        "entity_type": entity.type,
                         "description": entity.description,
-                        "confidence": entity.confidence,
+                        "confidence": getattr(entity, 'confidence', None),
                         "is_center": entity.id == entity_id  # 标记中心节点
                     })
             
@@ -423,9 +426,9 @@ class KGQueryService:
             
             # 应用日期过滤
             if start_date:
-                stmt = stmt.where(NewsEvent.published_at >= start_date)
+                stmt = stmt.where(NewsEvent.publish_time >= start_date)
             if end_date:
-                stmt = stmt.where(NewsEvent.published_at <= end_date)
+                stmt = stmt.where(NewsEvent.publish_time <= end_date)
             
             # 计算总数
             count_stmt = select(func.count(NewsEvent.id)).join(
@@ -433,16 +436,16 @@ class KGQueryService:
             ).where(news_event_entity.c.entity_id == entity_id)
             
             if start_date:
-                count_stmt = count_stmt.where(NewsEvent.published_at >= start_date)
+                count_stmt = count_stmt.where(NewsEvent.publish_time >= start_date)
             if end_date:
-                count_stmt = count_stmt.where(NewsEvent.published_at <= end_date)
+                count_stmt = count_stmt.where(NewsEvent.publish_time <= end_date)
             
             total_result = await self.session.execute(count_stmt)
             total = total_result.scalar()
             
             # 分页查询
             offset = (page - 1) * page_size
-            stmt = stmt.order_by(NewsEvent.published_at.desc()).offset(offset).limit(page_size)
+            stmt = stmt.order_by(NewsEvent.publish_time.desc()).offset(offset).limit(page_size)
             
             result = await self.session.execute(stmt)
             news_list = result.scalars().all()
@@ -456,9 +459,9 @@ class KGQueryService:
                     "summary": news.summary,
                     "url": news.url,
                     "source": news.source,
-                    "published_at": news.published_at.isoformat() if news.published_at else None,
-                    "sentiment": news.sentiment,
-                    "category": news.category
+                    "published_at": news.publish_time.isoformat() if news.publish_time else None,
+                    "sentiment": getattr(news, 'sentiment', None),
+                    "category": getattr(news, 'category', None)
                 })
             
             return {
@@ -529,7 +532,7 @@ class KGQueryService:
                 
                 # 分页查询
                 offset = (page - 1) * page_size
-                stmt = stmt.order_by(NewsEvent.published_at.desc()).offset(offset).limit(page_size)
+                stmt = stmt.order_by(NewsEvent.publish_time.desc()).offset(offset).limit(page_size)
                 
                 result = await self.session.execute(stmt)
                 news_list = result.scalars().all()
@@ -543,9 +546,9 @@ class KGQueryService:
                         "summary": news.summary,
                         "url": news.url,
                         "source": news.source,
-                        "published_at": news.published_at.isoformat() if news.published_at else None,
-                        "sentiment": news.sentiment,
-                        "category": news.category
+                        "published_at": news.publish_time.isoformat() if news.publish_time else None,
+                        "sentiment": getattr(news, 'sentiment', None),
+                        "category": getattr(news, 'category', None)
                     })
                 
                 return {
@@ -597,7 +600,7 @@ class KGQueryService:
             
             # 应用实体类型过滤
             if entity_type:
-                stmt = stmt.where(Entity.entity_type == entity_type)
+                stmt = stmt.where(Entity.type == entity_type)
             
             # 按置信度排序，限制数量
             stmt = stmt.order_by(Entity.confidence.desc()).limit(limit)
@@ -614,9 +617,9 @@ class KGQueryService:
                 entity_data.append({
                     "id": entity.id,
                     "name": entity.name,
-                    "entity_type": entity.entity_type,
+                    "entity_type": entity.type,
                     "description": entity.description,
-                    "confidence": entity.confidence,
+                    "confidence": getattr(entity, 'confidence', None),
                     "relevance_score": relevance_score,
                     "created_at": entity.created_at.isoformat() if entity.created_at else None
                 })
@@ -642,11 +645,11 @@ class KGQueryService:
     ) -> List[Relation]:
         """获取实体的直接关系"""
         stmt = select(Relation).where(
-            or_(Relation.source_entity_id == entity_id, Relation.target_entity_id == entity_id)
+            or_(Relation.subject_id == entity_id, Relation.object_id == entity_id)
         )
         
         if relation_types:
-            stmt = stmt.where(Relation.relation_type.in_(relation_types))
+            stmt = stmt.where(Relation.predicate.in_(relation_types))
         
         result = await self.session.execute(stmt)
         return result.scalars().all()
@@ -654,7 +657,7 @@ class KGQueryService:
     async def _get_entity_relations_count(self, entity_id: int) -> int:
         """获取实体关系数量"""
         stmt = select(func.count(Relation.id)).where(
-            or_(Relation.source_entity_id == entity_id, Relation.target_entity_id == entity_id)
+            or_(Relation.subject_id == entity_id, Relation.object_id == entity_id)
         )
         result = await self.session.execute(stmt)
         return result.scalar() or 0
@@ -682,6 +685,6 @@ class KGQueryService:
             # 这里可以实现更复杂的 relevance 计算逻辑
             # 暂时返回实体的置信度作为相关性分数
             entity = await self.entity_repo.get_by_id(entity_id)
-            return entity.confidence if entity else 0.0
+            return getattr(entity, 'confidence', 0.0) if entity else 0.0
         except:
             return 0.0
