@@ -84,6 +84,55 @@
         }
         .page-btn.active { background: #409eff; color: white; border-color: #409eff; }
         .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        /* 功能卡片样式 */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .feature-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .feature-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        .feature-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .feature-desc {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        .feature-btn {
+            background: #409eff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .feature-btn:hover {
+            background: #66b1ff;
+        }
     </style>
 </head>
 <body>
@@ -112,12 +161,7 @@
                     <button class="feature-btn" onclick="window.location.href='graph.html'">进入功能</button>
                 </div>
 
-                <div class="feature-card">
-                    <div class="feature-icon">🧪</div>
-                    <h3 class="feature-title">API测试</h3>
-                    <p class="feature-desc">测试和调试知识图谱API接口</p>
-                    <button class="feature-btn" onclick="window.location.href='test-api.html'">进入功能</button>
-                </div>
+
             </div>
         </div>
 
