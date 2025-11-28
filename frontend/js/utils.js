@@ -188,27 +188,7 @@ class Utils {
      * 生成唯一ID
      */
     static generateId(prefix = 'id') {
-        return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-
-    /**
-     * 验证邮箱格式
-     */
-    static validateEmail(email) {
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return re.test(email);
-    }
-
-    /**
-     * 验证URL格式
-     */
-    static validateUrl(url) {
-        try {
-            new URL(url);
-            return true;
-        } catch {
-            return false;
-        }
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     }
 
     /**

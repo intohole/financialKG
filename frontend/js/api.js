@@ -19,11 +19,18 @@ class KGAPI {
         const url = `${this.baseURL}${endpoint}`;
         const config = {
             headers: { ...this.defaultHeaders, ...options.headers },
+            timeout: 30000, // 30秒超时
             ...options
         };
 
+        // 创建超时Promise
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('请求超时')), config.timeout);
+        });
+
         try {
-            const response = await fetch(url, config);
+            const fetchPromise = fetch(url, config);
+            const response = await Promise.race([fetchPromise, timeoutPromise]);
             
             if (!response.ok) {
                 const error = await this.parseError(response);
@@ -121,6 +128,11 @@ class KGAPI {
         if (params.entity_id) queryParams.append('entity_id', params.entity_id);
         if (params.relation_type) queryParams.append('relation_type', params.relation_type);
         if (params.search) queryParams.append('search', params.search);
+        if (params.relation_types && Array.isArray(params.relation_types)) {
+            params.relation_types.forEach(type => {
+                queryParams.append('relation_types', type);
+            });
+        }
 
         const endpoint = `/api/kg/relations${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
         return await this.request(endpoint);

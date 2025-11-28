@@ -56,11 +56,16 @@ class KGApplication {
         // 实体管理面板事件
         const entitySearchBox = document.getElementById('entity-search');
         if (entitySearchBox) {
-            entitySearchBox.addEventListener('search:change', (e) => {
-                this.searchQuery = e.detail.query;
-                this.entitiesPage = 1;
-                this.loadEntities();
+            // 创建 SearchBox 组件
+            const searchBox = new SearchBox(entitySearchBox, {
+                placeholder: '搜索实体名称...',
+                onSearch: (query) => {
+                    this.searchQuery = query;
+                    this.entitiesPage = 1;
+                    this.loadEntities();
+                }
             });
+            searchBox.render();
         }
 
         // 网络分析面板事件
@@ -303,6 +308,7 @@ class KGApplication {
         
         if (!entitiesContainer || !paginationContainer) return;
 
+        console.log('加载实体列表，搜索关键词:', this.searchQuery);
         entitiesContainer.innerHTML = UIUtils.createLoader('正在加载实体列表...');
 
         try {
@@ -465,7 +471,9 @@ class KGApplication {
             if (query) {
                 searchTimeout = setTimeout(() => {
                     this.searchEntityForNetwork(query);
-                }, 500);
+                }, 300);
+            } else {
+                this.clearNetworkGraph();
             }
         });
 
@@ -548,6 +556,15 @@ class KGApplication {
             }
 
             this.networkGraph.setData(processedData);
+            
+            // 绑定网络图事件
+            this.networkGraph.on('node:click', (node) => {
+                this.handleNodeClick(node);
+            });
+            
+            this.networkGraph.on('node:dblclick', (node) => {
+                this.showEntityNetwork(node);
+            });
             
         } catch (error) {
             console.error('加载网络数据失败:', error);
@@ -673,6 +690,17 @@ class KGApplication {
      */
     showEntityNetwork(entity) {
         this.switchPanel('network');
+        
+        // 更新搜索框的值
+        const searchInput = document.querySelector('#network-search-box .search-input');
+        if (searchInput) {
+            searchInput.value = entity.name;
+            const clearBtn = document.querySelector('#network-search-box .search-clear-btn');
+            if (clearBtn) {
+                clearBtn.style.display = 'block';
+            }
+        }
+        
         setTimeout(() => {
             this.searchEntityForNetwork(entity.name);
         }, 300);
@@ -694,6 +722,14 @@ class KGApplication {
         };
 
         this.showEntityDetail(entityData);
+    }
+
+    /**
+     * 处理节点双击
+     */
+    handleNodeDoubleClick(node) {
+        // 双击节点时直接在网络面板中显示该实体的网络
+        this.showEntityNetwork(node);
     }
 
     /**
