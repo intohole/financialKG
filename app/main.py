@@ -6,11 +6,21 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import router as knowledge_graph_router
+# from app.api.routes import router as knowledge_graph_router  # 该模块不存在
+from app.api.kg_query_routes import register_routes as register_kg_query_routes
+from app.api.kg_content_routes import register_routes as register_kg_content_routes
+from app.config.config_manager import ConfigManager
+from app.database.manager import init_database
 
 
 def create_app() -> FastAPI:
     """创建FastAPI应用实例"""
+    
+    # 初始化配置管理器
+    config_manager = ConfigManager()
+    
+    # 初始化数据库
+    init_database(config_manager.get_database_config())
     
     # 创建FastAPI应用
     app = FastAPI(
@@ -31,7 +41,13 @@ def create_app() -> FastAPI:
     )
     
     # 注册路由
-    app.include_router(knowledge_graph_router)
+    # app.include_router(knowledge_graph_router)  # 该模块不存在
+    
+    # 注册知识图谱查询路由
+    register_kg_query_routes(app)
+    
+    # 注册知识图谱内容处理路由
+    register_kg_content_routes(app)
     
     # 根路径
     @app.get("/")
