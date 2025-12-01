@@ -35,14 +35,15 @@ async function processContent() {
         state.processing = true;
         showLoading();
         
-        const response = await apiRequest('/process-content', {
-            content_id: contentId || undefined,
-            text: contentText
-        });
+        const response = await window.KGAPI.processContent(contentText, contentId || null);
         
-        state.lastResult = response;
-        displayResult(response);
-        showMessage('内容处理成功！', 'success');
+        if (response.status === 'success') {
+            state.lastResult = response.data;
+            displayResult(response.data);
+            showMessage(response.message, 'success');
+        } else {
+            showMessage(response.message, 'error');
+        }
         
     } catch (error) {
         showMessage('处理失败: ' + error.message, 'error');
@@ -172,13 +173,3 @@ function getEntityTypeLabel(type) {
     return labels[type] || type || '未知';
 }
 
-// API请求 - 使用统一的配置
-async function apiRequest(endpoint, data) {
-    return window.apiRequest(endpoint, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    });
-}

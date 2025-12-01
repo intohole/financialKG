@@ -181,10 +181,6 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
         if not self.store:
             raise RuntimeError("存储未初始化，请先调用initialize方法")
         
-        # 参数验证（在try块外，确保ValueError直接抛出）
-        if not content or not content.strip():
-            raise ValueError("内容不能为空")
-        
         try:
             logger.info(f"开始处理内容，长度: {len(content)}")
             
@@ -198,13 +194,15 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             logger.info(f"内容分类结果: {classification_result.category}, 置信度: {classification_result.confidence}")
             
             # 创建新闻事件记录（在生成摘要后进行，存储摘要数据）
-          
             
-            if classification_result and classification_result.category:
-                category_name = classification_result.category
-                logger.info(f"使用分类: {category_name}")
+            # 修复分类结果检查逻辑，避免不必要的 ValueError
+            category_name = classification_result.category if classification_result else None
+            if not category_name:
+                category_name = "general"  # 使用默认分类
+                logger.warning(f"无法获取分类结果，使用默认分类: {category_name}")
             else:
-                raise ValueError("无法获取分类结果")
+                logger.info(f"使用分类: {category_name}")
+            
             category_info = category_config.get(category_name, {})
             
             entity_types = category_info.get('entity_types', kg_config.entity_types)
@@ -229,11 +227,10 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             # 使用ContentSummary创建新闻事件（可选流程）
             await self._create_news_event_from_summary(
                 summary_result, 
-                classification_result.category,
+                category_name,
                 len(processed_entities),
                 len(extraction_result.knowledge_graph.relations)
             )
-            
             
             # 构建知识图谱
             metadata = {
@@ -247,7 +244,7 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             knowledge_graph = KnowledgeGraph(
                 entities=list(processed_entities.values()),
                 relations=extraction_result.knowledge_graph.relations,
-                category=classification_result.category,
+                category=category_name,
                 metadata=metadata
             )
             
@@ -255,8 +252,8 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             return knowledge_graph
             
         except Exception as e:
-            logger.error(f"处理内容失败: {e}")
-            raise RuntimeError(f"处理内容失败: {str(e)}")
+            logger.error(f"处理内容失败: {e}", exc_info=True)
+            raise  # 保留原始异常上下文
 
     async def _process_entities_with_vector_search(self, entities: List[Entity]) -> Dict[str, Entity]:
         """
@@ -274,61 +271,58 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
         
         for i, entity in enumerate(entities):
             try:
-                logger.info(f"处理实体 {i+1}/{total_entities}: '{entity.name}' (类型: {entity.type})")
+                entity_name = entity.name
+                # 检查是否已处理过该实体
+                if entity_name in processed_entities:
+                    logger.debug(f"实体 '{entity_name}' 已处理，跳过")
+                    continue
                 
                 # 根据store中存储的方法，根据向量查找，找到对应的相似向量
-                logger.debug(f"正在搜索相似实体: '{entity.name}'")
                 similar_entities = await self.store.search_entities(
-                    query=entity.name,
+                    query=entity_name,
                     entity_type=entity.type,
                     top_k=5,
                     include_vector_search=True,
                     include_full_text_search=False
                 )
                 
-                logger.info(f"找到 {len(similar_entities)} 个相似实体")
-                
                 if not similar_entities:
-                    logger.info(f"未找到相似实体，将创建新的实体: '{entity.name}'")
-                    # 如果无重复，直接存储实体以及对应的关系
-                    logger.info(f"存储新实体: '{entity.name}'")
+                    # 未找到相似实体，创建新实体
                     stored_entity = await self.store.create_entity(entity)
-                    logger.info(
-                        f"成功存储实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
-                    processed_entities[entity.name] = stored_entity
+                    logger.debug(f"成功存储新实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
+                    processed_entities[entity_name] = stored_entity
                     continue
 
-                is_all_match = False
+                # 检查是否有完全匹配的实体
+                matched_entity = None
                 for result in similar_entities:
-                    if result.entity and result.entity.name == entity.name:
-                        processed_entities[entity.name] = result.entity
-                        logger.info(f"已找到匹配实体: '{result.entity.name}'")
-                        is_all_match = True
-                if is_all_match:
+                    if result.entity and result.entity.name == entity_name:
+                        matched_entity = result.entity
+                        break
+                
+                if matched_entity:
+                    logger.debug(f"已找到匹配实体: '{matched_entity.name}'")
+                    processed_entities[entity_name] = matched_entity
                     continue
 
-                candidate_entities = [result.entity for result in similar_entities if result.entity and result.entity.name != entity.name]
-                logger.debug(f"候选实体: {[e.name for e in candidate_entities]}")
-
-
-                logger.info(f"解析实体 '{entity.name}' 的歧义...")
+                # 准备候选实体列表
+                candidate_entities = [result.entity for result in similar_entities if result.entity and result.entity.name != entity_name]
+                
+                # 解析实体歧义
                 ambiguity_result = await self.entity_analyzer.resolve_entity_ambiguity(
                         entity, candidate_entities
                 )
 
-                logger.info(f"歧义解析结果: 选中实体={ambiguity_result.selected_entity.name if ambiguity_result.selected_entity else '无'}, 置信度={ambiguity_result.confidence}")
-
                 if ambiguity_result.selected_entity:
-                        # 如果有选中的实体，使用选中的实体
+                    # 如果有选中的实体，使用选中的实体
                     selected_entity = ambiguity_result.selected_entity
-                    logger.info(f"实体 '{entity.name}' 与选中实体 '{selected_entity.name}' 匹配 (置信度: {ambiguity_result.confidence})")
-                    processed_entities[entity.name] = selected_entity
+                    logger.debug(f"实体 '{entity_name}' 与选中实体 '{selected_entity.name}' 匹配 (置信度: {ambiguity_result.confidence})")
+                    processed_entities[entity_name] = selected_entity
                 else:
                     # 如果没有选中的实体，创建新实体
-                    logger.info(f"未选中任何候选实体，将创建新实体: '{entity.name}'")
                     stored_entity = await self.store.create_entity(entity)
-                    logger.info(f"成功存储新实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
-                    processed_entities[entity.name] = stored_entity
+                    logger.debug(f"成功存储新实体: {stored_entity.name} (ID: {stored_entity.id}, 类型: {stored_entity.type})")
+                    processed_entities[entity_name] = stored_entity
 
             except Exception as e:
                 logger.error(f"处理实体 '{entity.name}' 失败: {e}")
@@ -508,7 +502,7 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             raise RuntimeError(f"查询知识图谱失败: {str(e)}")
 
     @staticmethod
-    def _build_query_context(self, search_results: List) -> str:
+    def _build_query_context(search_results: List) -> str:
         """
         构建查询上下文
         

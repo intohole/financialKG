@@ -17,7 +17,7 @@ const state = {
 
 // 页面初始化
 function initializePage() {
-    if (typeof window.apiRequest === 'function' && typeof d3 !== 'undefined') {
+    if (typeof window.KGAPI === 'object' && typeof d3 !== 'undefined') {
         setupGraph();
         loadGraphData();
         setupEventListeners();
@@ -37,11 +37,15 @@ function setupEventListeners() {
     // 重置按钮
     document.getElementById('resetBtn').addEventListener('click', () => {
         document.getElementById('searchForm').reset();
-        loadGraphData();
+        const depth = parseInt(document.getElementById('depth')?.value) || 2;
+        loadGraphData(depth);
     });
 
     // 刷新按钮
-    document.getElementById('refreshBtn').addEventListener('click', loadGraphData);
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        const depth = parseInt(document.getElementById('depth')?.value) || 2;
+        loadGraphData(depth);
+    });
 
     // 窗口大小变化
     window.addEventListener('resize', () => {
@@ -54,6 +58,7 @@ function setupGraph() {
     const container = document.getElementById('graph-svg');
     
     if (!container) {
+        // 只在开发环境显示日志
         console.error('图谱容器未找到');
         return;
     }
@@ -84,7 +89,7 @@ function setupGraph() {
 }
 
 // 加载图谱数据
-async function loadGraphData() {
+async function loadGraphData(depth = 2) {
     if (state.loading) return;
     
     try {
@@ -92,40 +97,38 @@ async function loadGraphData() {
         showLoading(true, 'graph-svg');
         
         // 获取实体数据
-        const entitiesRes = await window.apiRequest('/entities?page=1&page_size=50');
+        const entitiesRes = await window.KGAPI.getEntities({
+            page: 1,
+            page_size: 50
+        });
         
-        // 获取关系数据
-        const relationsRes = await window.apiRequest('/relations?page=1&page_size=100');
+        if (entitiesRes.items.length === 0) {
+            showError('暂无实体数据', 'info');
+            state.loading = false;
+            hideLoading();
+            return;
+        }
         
-        // 转换数据格式
-        const nodes = entitiesRes.items.map(entity => ({
-            id: entity.id,
-            name: entity.name,
-            type: entity.entity_type || entity.type,
-            description: entity.description,
-            created_at: entity.created_at,
-            x: Math.random() * state.width,
-            y: Math.random() * state.height
-        }));
-
-        const links = relationsRes.items.map(relation => ({
-            source: relation.source_entity.id,
-            target: relation.target_entity.id,
-            relationship: relation.relation_type,
-            strength: 1,
-            id: relation.id
-        }));
-
-        state.nodes = nodes;
-        state.links = links;
+        // 选择第一个实体作为中心，获取其邻居网络
+        const centerEntity = entitiesRes.items[0];
+        console.log(`获取实体 ${centerEntity.id} 的邻居网络，深度: ${depth}`);
+        const neighborsResponse = await window.KGAPI.getEntityNeighbors(centerEntity.id, {
+            depth: depth,
+            max_entities: 100
+        });
+        
+        console.log(`获取到 ${neighborsResponse.nodes?.length || 0} 个节点，${neighborsResponse.edges?.length || 0} 条边`);
+        state.nodes = neighborsResponse.nodes || [];
+        state.links = neighborsResponse.edges || [];
         
         if (state.nodes.length > 0) {
             renderGraph();
         } else {
-            showError('暂无数据', 'info');
+            showError('暂无图谱数据', 'info');
         }
         
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('加载图谱失败:', error);
         showError('加载图谱失败，请稍后重试', 'error');
     } finally {
@@ -169,7 +172,7 @@ function renderGraph() {
         .enter().append('circle')
         .attr('class', 'graph-node')
         .attr('r', 20)
-        .attr('fill', d => getNodeColor(d.type))
+        .attr('fill', d => getNodeColor(d.entity_type))
         .attr('stroke', '#fff')
         .attr('stroke-width', 2)
         .call(d3.drag()
@@ -185,7 +188,7 @@ function renderGraph() {
         .selectAll('text')
         .data(state.nodes)
         .enter().append('text')
-        .attr('class', 'link-label')
+        .attr('class', 'node-label')
         .attr('text-anchor', 'middle')
         .attr('dy', '.35em')
         .style('font-size', '12px')
@@ -194,7 +197,11 @@ function renderGraph() {
 
     // 更新力导向图
     state.simulation.nodes(state.nodes);
-    state.simulation.force('link').links(linksWithReferences);
+    state.simulation.force('link')
+        .links(linksWithReferences)
+        .distance(150); // 增加连线距离，确保深度为2的邻居能正确显示
+    state.simulation.force('charge')
+        .strength(-500); // 增加排斥力，确保节点不会重叠
     state.simulation.alpha(1).restart();
 
     // 更新位置
@@ -224,57 +231,46 @@ async function searchEntities() {
     const formData = new FormData(document.getElementById('searchForm'));
     const name = formData.get('name');
     const type = formData.get('type');
+    const depth = parseInt(formData.get('depth')) || 2;
     
     if (!name && !type) {
-        loadGraphData();
+        loadGraphData(depth);
         return;
     }
 
     try {
         showLoading();
         
-        const params = new URLSearchParams();
-        if (name) params.append('name', name);
-        if (type && type !== '') params.append('type', type);
+        const response = await window.KGAPI.getEntities({
+            page: 1,
+            page_size: 50,
+            search: name || null,
+            entity_type: type || null
+        });
         
-        const response = await window.apiRequest(`/entities?${params}`);
-        
-        // 只显示搜索结果
-        const nodes = response.items.map(entity => ({
-            id: entity.id,
-            name: entity.name,
-            type: entity.entity_type || entity.type,
-            description: entity.description,
-            created_at: entity.created_at,
-            x: Math.random() * state.width,
-            y: Math.random() * state.height
-        }));
-
-        // 获取这些实体之间的关系
-        const entityIds = nodes.map(n => n.id);
-        const links = [];
-        
-        // 这里简化处理，实际应该根据实体ID获取关系
-        if (entityIds.length > 1) {
-            const relationsRes = await window.apiRequest(`/relations?page=1&page_size=100`);
-            relationsRes.items.forEach(relation => {
-                if (entityIds.includes(relation.source_entity.id) && entityIds.includes(relation.target_entity.id)) {
-                    links.push({
-                        source: relation.source_entity.id,
-                        target: relation.target_entity.id,
-                        relationship: relation.relation_type,
-                        strength: 1,
-                        id: relation.id
-                    });
-                }
-            });
+        if (response.items.length === 0) {
+            showError('未找到匹配的实体', 'info');
+            hideLoading();
+            return;
         }
-
-        state.nodes = nodes;
-        state.links = links;
+        
+        // 只显示搜索结果和它们的邻居
+        const centerEntity = response.items[0];
+        
+        // 获取实体邻居网络
+        console.log(`获取实体 ${centerEntity.id} 的邻居网络，深度: ${depth}`);
+        const neighborsResponse = await window.KGAPI.getEntityNeighbors(centerEntity.id, {
+            depth: depth,
+            max_entities: 100
+        });
+        
+        console.log(`获取到 ${neighborsResponse.nodes?.length || 0} 个节点，${neighborsResponse.edges?.length || 0} 条边`);
+        state.nodes = neighborsResponse.nodes || [];
+        state.links = neighborsResponse.edges || [];
         renderGraph();
         
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('搜索失败:', error);
         showError('搜索失败: ' + error.message, 'error');
     } finally {
@@ -460,6 +456,7 @@ function hideLoading() {
 }
 
 function showError(message, type = 'error') {
+    // 只在开发环境显示日志
     console.error('Error:', message);
     alert(message);
 }

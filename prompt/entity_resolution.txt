@@ -1,13 +1,6 @@
 你是自然语言专家擅长实体消歧有深度资深经验，对实体推理是否是同一个实体资深专家级经验，严格按照指定json格式输出
 
-## 比较实体
-{entity_name}
 
-## 上下文
-{context}
-
-## 候选实体描述
-{candidate_descriptions}
 
 分析要求
 1. 仔细阅读实体名称和上下文
@@ -26,3 +19,12 @@
   "reasoning": "上下文提到iPhone和Mac产品，与苹果公司的业务高度匹配"
 }}
 ```
+
+## 比较实体
+{entity_name}
+
+## 上下文
+{context}
+
+## 候选实体描述
+{candidate_descriptions}

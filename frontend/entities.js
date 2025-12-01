@@ -15,7 +15,7 @@ const state = {
 
 // 页面初始化
 function initializePage() {
-    if (typeof window.apiRequest === 'function') {
+    if (typeof window.KGAPI === 'object') {
         loadEntities();
         setupEventListeners();
     } else {
@@ -46,6 +46,12 @@ function setupEventListeners() {
             loadEntities();
         });
     }
+    
+    // 搜索框回车事件
+    const searchInput = document.getElementById('searchKeyword');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', handleEnter);
+    }
 }
 
 // 加载实体列表
@@ -56,24 +62,16 @@ async function loadEntities() {
         state.loading = true;
         showLoading();
         
-        const params = new URLSearchParams();
-        
-        params.append('page', state.currentPage);
-        params.append('page_size', state.pageSize);
-        
         // 获取搜索参数
         const searchInput = document.getElementById('searchKeyword');
         const typeSelect = document.getElementById('entityType');
         
-        if (searchInput && searchInput.value) {
-            params.append('name', searchInput.value);
-        }
-        
-        if (typeSelect && typeSelect.value) {
-            params.append('type', typeSelect.value);
-        }
-        
-        const response = await window.apiRequest(`/entities?${params}`);
+        const response = await window.KGAPI.getEntities({
+            page: state.currentPage,
+            page_size: state.pageSize,
+            search: searchInput && searchInput.value ? searchInput.value : null,
+            entity_type: typeSelect && typeSelect.value ? typeSelect.value : null
+        });
         
         state.entities = response.items || [];
         state.totalItems = response.total || 0;
@@ -82,6 +80,7 @@ async function loadEntities() {
         renderPagination();
         
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('加载实体失败:', error);
         showError('加载实体失败: ' + error.message, 'error');
     } finally {
@@ -111,7 +110,7 @@ function renderEntities() {
                 <div class="entity-card" onclick="showEntityDetails('${entity.id}')">
                     <div class="entity-header">
                         <div class="entity-name">${escapeHtml(entity.name)}</div>
-                        <span class="entity-type ${getEntityTypeClass(entity.entity_type)}">${getEntityTypeLabel(entity.entity_type)}</span>
+                        <span class="entity-type ${getEntityTypeClass(entity.type)}">${getEntityTypeLabel(entity.type)}</span>
                     </div>
                     <div class="entity-description">${escapeHtml(entity.description || '暂无描述')}</div>
                     <div class="entity-meta">
@@ -190,7 +189,7 @@ async function showEntityDetails(entityId) {
                         <div class="detail-grid">
                             <div class="detail-item">
                                 <label>类型:</label>
-                                <span class="entity-type ${getEntityTypeClass(entity.entity_type)}">${getEntityTypeLabel(entity.entity_type)}</span>
+                                <span class="entity-type ${getEntityTypeClass(entity.type)}">${getEntityTypeLabel(entity.type)}</span>
                             </div>
                             <div class="detail-item">
                                 <label>创建时间:</label>
@@ -220,7 +219,10 @@ async function showEntityDetails(entityId) {
         
         // 加载相关新闻
         try {
-            const newsRes = await window.apiRequest(`/entities/${entityId}/news?page=1&page_size=5`);
+            const newsRes = await window.KGAPI.getEntityNews(entityId, {
+                page: 1,
+                page_size: 5
+            });
             const newsContainer = document.getElementById('entity-news');
             
             if (newsRes.items && newsRes.items.length > 0) {
@@ -234,11 +236,13 @@ async function showEntityDetails(entityId) {
                 newsContainer.innerHTML = '<div class="empty-text">暂无相关新闻</div>';
             }
         } catch (newsError) {
-            console.error('加载新闻失败:', newsError);
-            document.getElementById('entity-news').innerHTML = '<div class="error-text">加载新闻失败</div>';
-        }
+                // 只在开发环境显示日志
+                console.error('加载新闻失败:', newsError);
+                document.getElementById('entity-news').innerHTML = '<div class="error-text">加载新闻失败</div>';
+            }
         
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('显示实体详情失败:', error);
         showError('显示实体详情失败: ' + error.message, 'error');
     }
@@ -265,24 +269,16 @@ function hideLoading() {
 }
 
 function showError(message, type) {
-    // 创建自定义错误提示，避免与全局showError冲突
-    const div = document.createElement('div');
-    Object.assign(div.style, {
-        position: 'fixed',
-        top: '20px',
-        right: '20px',
-        zIndex: '1000',
-        minWidth: '200px',
-        padding: '12px 16px',
-        borderRadius: '6px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        backgroundColor: type === 'error' ? '#fee' : type === 'success' ? '#efe' : '#eef',
-        color: type === 'error' ? '#c00' : type === 'success' ? '#060' : '#006',
-        border: `1px solid ${type === 'error' ? '#fcc' : type === 'success' ? '#cfc' : '#ccf'}`
-    });
-    div.textContent = message;
-    document.body.appendChild(div);
-    setTimeout(() => div.remove(), 3000);
+    // 直接使用config.js中定义的window.showError，避免递归
+    if (typeof window.showError === 'function') {
+        // 保存原始函数引用，避免递归
+        const originalShowError = window.showError;
+        originalShowError(message, type);
+    } else {
+        // 只在开发环境显示日志
+        console.error('Error:', message);
+        alert(message);
+    }
 }
 
 function escapeHtml(text) {

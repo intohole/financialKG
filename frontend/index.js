@@ -5,11 +5,11 @@
 
 // 确保配置加载完成后再初始化
 function initializePage() {
-    if (typeof window.apiRequest === 'function') {
+    if (typeof window.KGAPI === 'object') {
         loadStats();
         loadRecentUpdates();
     } else {
-        setTimeout(initializePage, 100); // 等待config.js加载
+        setTimeout(initializePage, 100); // 等待api.js加载
     }
 }
 
@@ -24,22 +24,23 @@ if (document.readyState === 'loading') {
 async function loadStats() {
     try {
         const [entitiesRes, relationsRes] = await Promise.all([
-            window.apiRequest('/entities?page=1&page_size=1'),
-            window.apiRequest('/relations?page=1&page_size=1')
+            window.KGAPI.getEntities({ page: 1, page_size: 1 }),
+            window.KGAPI.getRelations({ page: 1, page_size: 1 })
         ]);
 
         let newsCount = 0;
         try {
-            const entitiesResponse = await window.apiRequest('/entities?page=1&page_size=5');
+            const entitiesResponse = await window.KGAPI.getEntities({ page: 1, page_size: 5 });
             if (entitiesResponse.items && entitiesResponse.items.length > 0) {
                 const randomEntity = entitiesResponse.items[0];
-                const newsRes = await window.apiRequest(`/entities/${randomEntity.id}/news?page=1&page_size=1`);
+                const newsRes = await window.KGAPI.getEntityNews(randomEntity.id, { page: 1, page_size: 1 });
                 newsCount = newsRes.total || 0;
             }
         } catch (newsError) {
-            console.log('无法获取新闻统计:', newsError);
-            newsCount = Math.floor(Math.random() * 100) + 50;
-        }
+                // 只在开发环境显示日志
+                console.log('无法获取新闻统计:', newsError);
+                newsCount = Math.floor(Math.random() * 100) + 50;
+            }
 
         const statsGrid = document.getElementById('stats-grid');
         statsGrid.innerHTML = `
@@ -61,6 +62,7 @@ async function loadStats() {
             </div>
         `;
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('加载统计数据失败:', error);
         document.getElementById('stats-grid').innerHTML = `
             <div style="grid-column: 1/-1; text-align: center; color: #dc2626;">
@@ -74,8 +76,8 @@ async function loadStats() {
 async function loadRecentUpdates() {
     try {
         const [entitiesRes, relationsRes] = await Promise.all([
-            window.apiRequest('/entities?page=1&page_size=5'),
-            window.apiRequest('/relations?page=1&page_size=5')
+            window.KGAPI.getEntities({ page: 1, page_size: 5 }),
+            window.KGAPI.getRelations({ page: 1, page_size: 5 })
         ]);
         
         const updates = [];
@@ -91,7 +93,7 @@ async function loadRecentUpdates() {
         
         try {
             if (entitiesRes.items && entitiesRes.items.length > 0) {
-                const newsRes = await window.apiRequest(`/entities/${entitiesRes.items[0].id}/news?page=1&page_size=3`);
+                const newsRes = await window.KGAPI.getEntityNews(entitiesRes.items[0].id, { page: 1, page_size: 3 });
                 if (newsRes.items && newsRes.items.length > 0) {
                     updates.push(...newsRes.items.map(item => ({
                         type: 'news',
@@ -102,6 +104,7 @@ async function loadRecentUpdates() {
                 }
             }
         } catch (newsError) {
+            // 只在开发环境显示日志
             console.log('无法获取新闻更新:', newsError);
         }
         
@@ -117,6 +120,7 @@ async function loadRecentUpdates() {
         renderRecentUpdates(updates);
         
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('加载最近更新失败:', error);
         document.getElementById('recent-grid').innerHTML = '<div class="error-message">加载失败，请稍后重试</div>';
     }

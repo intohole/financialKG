@@ -64,9 +64,9 @@ class BaseService(ABC):
             formatted_prompt = prompt_template.format(**kwargs)
             logger.debug(f"格式化后的prompt预览: {formatted_prompt[:200]}...")
             
-            # 调用大模型
+            # 调用大模型 - 使用异步调用
             logger.info(f"开始LLM调用: {prompt_key}")
-            response_obj =  self.llm_service.generate(formatted_prompt)
+            response_obj = await self.llm_service.async_generate(formatted_prompt)
             response = response_obj.content if hasattr(response_obj, 'content') else str(response_obj)
             
             if not response:

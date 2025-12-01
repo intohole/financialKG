@@ -16,7 +16,7 @@ const state = {
 
 // 页面初始化
 function initializePage() {
-    if (typeof window.apiRequest === 'function') {
+    if (typeof window.KGAPI === 'object') {
         // 获取URL参数
         const urlParams = new URLSearchParams(window.location.search);
         state.entityId = urlParams.get('entity_id');
@@ -70,34 +70,24 @@ async function loadNews() {
         state.loading = true;
         showLoading();
         
-        const params = new URLSearchParams();
-        
-        params.append('page', state.currentPage);
-        params.append('page_size', state.pageSize);
-        
         // 获取搜索参数
         const searchInput = document.getElementById('searchKeyword');
-        const timeSelect = document.getElementById('timeRange');
-        
-        if (searchInput && searchInput.value) {
-            params.append('title', searchInput.value);
-        }
-        
-        if (timeSelect && timeSelect.value) {
-            params.append('time_range', timeSelect.value);
-        }
-        
-        if (state.entityId) {
-            params.append('entity_id', state.entityId);
-        }
         
         let response;
         if (state.entityId) {
             // 如果有实体ID，获取该实体的新闻
-            response = await window.apiRequest(`/entities/${state.entityId}/news?${params}`);
+            response = await window.KGAPI.getEntityNews(state.entityId, {
+                page: state.currentPage,
+                page_size: state.pageSize,
+                search: searchInput && searchInput.value ? searchInput.value : null
+            });
         } else {
             // 否则获取所有新闻
-            response = await window.apiRequest(`/news?${params}`);
+            response = await window.KGAPI.getNewsList({
+                page: state.currentPage,
+                page_size: state.pageSize,
+                search: searchInput && searchInput.value ? searchInput.value : null
+            });
         }
         
         state.news = response.items || [];
@@ -107,6 +97,7 @@ async function loadNews() {
         renderPagination();
         
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('加载新闻失败:', error);
         showError('加载新闻失败: ' + error.message, 'error');
     } finally {
@@ -120,6 +111,7 @@ function renderNews() {
     const container = document.getElementById('news-container');
     
     if (!container) {
+        // 只在开发环境显示日志
         console.error('news-container element not found');
         return;
     }
@@ -160,6 +152,7 @@ function renderNews() {
 function renderPagination() {
     const container = document.getElementById('pagination-container');
     if (!container) {
+        // 只在开发环境显示日志
         console.error('pagination-container element not found');
         return;
     }
@@ -284,11 +277,11 @@ async function showNewsDetails(newsId) {
         
         // 加载相关实体
         try {
-            const entitiesRes = await window.apiRequest(`/news/${newsId}/entities`);
+            const entitiesRes = await window.KGAPI.getNewsEntities(newsId);
             const entitiesContainer = document.getElementById('news-entities');
             
-            if (entitiesRes.items && entitiesRes.items.length > 0) {
-                entitiesContainer.innerHTML = entitiesRes.items.map(entity => `
+            if (entitiesRes.entities && entitiesRes.entities.length > 0) {
+                entitiesContainer.innerHTML = entitiesRes.entities.map(entity => `
                     <div class="entity-item">
                         <span class="entity-name">${escapeHtml(entity.name)}</span>
                         <span class="entity-type ${getEntityTypeClass(entity.type)}">${getEntityTypeLabel(entity.type)}</span>
@@ -298,11 +291,13 @@ async function showNewsDetails(newsId) {
                 entitiesContainer.innerHTML = '<div class="empty-text">暂无相关实体</div>';
             }
         } catch (entitiesError) {
-            console.error('加载实体失败:', entitiesError);
-            document.getElementById('news-entities').innerHTML = '<div class="error-text">加载实体失败</div>';
-        }
+                // 只在开发环境显示日志
+                console.error('加载实体失败:', entitiesError);
+                document.getElementById('news-entities').innerHTML = '<div class="error-text">加载实体失败</div>';
+            }
         
     } catch (error) {
+        // 只在开发环境显示日志
         console.error('显示新闻详情失败:', error);
         showError('显示新闻详情失败: ' + error.message, 'error');
     }
@@ -341,6 +336,7 @@ function showError(message, type) {
         }, 5000);
     } else {
         // 如果没有错误容器，使用alert
+        // 只在开发环境显示日志
         console.error('Error:', message);
         alert(message);
     }
@@ -393,28 +389,7 @@ function truncateText(text, maxLength) {
     return text.substring(0, maxLength) + '...';
 }
 
-// 搜索和重置函数
-function searchNews() {
-    state.currentPage = 1;
-    loadNews();
-}
 
-function resetSearch() {
-    const searchInput = document.getElementById('searchKeyword');
-    const timeSelect = document.getElementById('timeRange');
-    if (searchInput) searchInput.value = '';
-    if (timeSelect) timeSelect.value = '';
-    state.currentPage = 1;
-    state.entityId = null;
-    loadNews();
-}
-
-// 回车事件处理
-function handleEnter(event) {
-    if (event.key === 'Enter') {
-        searchNews();
-    }
-}
 
 // 页面初始化
 function initNewsPage() {

@@ -89,13 +89,11 @@ async def process_content(
         content_id: 内容ID（可选）
         
     Returns:
-        KnowledgeGraph: 构建的知识图谱
+        dict: 包含任务状态和消息的响应
         
     Raises:
-        HTTPException: 当参数无效或服务异常时
+        HTTPException: 当参数无效时
     """
-    start_time = asyncio.get_event_loop().time()
-    
     try:
         # 1. 参数验证
         request.validate_content()
@@ -107,25 +105,30 @@ async def process_content(
             # 3. 调用核心服务处理内容
             knowledge_graph = await kg_core_service.process_content(request.content)
             
-            # 4. 性能监控
-            processing_time = asyncio.get_event_loop().time() - start_time
-            logger.info(f"内容处理完成，耗时: {processing_time:.2f}s, "
-                       f"实体: {len(knowledge_graph.entities)}, "
-                       f"关系: {len(knowledge_graph.relations)}")
-            
-            # 5. 返回结果
-            return knowledge_graph
+            # 4. 返回结果
+            return {
+                "status": "success",
+                "message": "内容处理完成",
+                "data": knowledge_graph
+            }
         
     except ValueError as e:
         logger.warning(f"内容验证失败: {e}")
         raise HTTPException(status_code=400, detail=f"内容验证失败: {str(e)}")
     except asyncio.TimeoutError:
-        logger.error(f"内容处理超时，耗时: {asyncio.get_event_loop().time() - start_time:.2f}s")
-        raise HTTPException(status_code=504, detail="内容处理超时")
+        logger.error(f"内容处理超时")
+        return {
+            "status": "error",
+            "message": "内容处理超时",
+            "data": None
+        }
     except Exception as e:
-        processing_time = asyncio.get_event_loop().time() - start_time
-        logger.error(f"处理内容失败，耗时: {processing_time:.2f}s, 错误: {e}")
-        raise HTTPException(status_code=500, detail=f"处理内容失败: {str(e)}")
+        logger.error(f"处理内容失败，错误: {e}")
+        return {
+            "status": "error",
+            "message": f"处理内容失败: {str(e)}",
+            "data": None
+        }
 
 
 def register_routes(app):

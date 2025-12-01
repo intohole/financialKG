@@ -33,6 +33,7 @@ async function apiRequest(endpoint, options = {}) {
             return await response.json();
         } catch (error) {
             lastError = error;
+            // 显示重试日志
             console.warn(`请求失败 (尝试 ${i + 1}/${API_CONFIG.RETRY_COUNT}):`, error.message);
             if (i < API_CONFIG.RETRY_COUNT - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
