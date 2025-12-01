@@ -5,7 +5,7 @@
 
 // API基础配置
 const API_CONFIG = {
-    BASE_URL: 'http://localhost:8066',
+    BASE_URL: 'http://localhost:8066/api/kg',
     TIMEOUT: 30000,
     RETRY_COUNT: 3
 };
@@ -42,6 +42,41 @@ async function apiRequest(endpoint, options = {}) {
     throw lastError;
 }
 
+// 统一的错误处理函数
+function showError(message, type = 'error') {
+    const div = document.createElement('div');
+    Object.assign(div.style, {
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        zIndex: '1000',
+        minWidth: '200px',
+        padding: '12px 16px',
+        borderRadius: '6px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        backgroundColor: type === 'error' ? '#fee' : type === 'success' ? '#efe' : '#eef',
+        color: type === 'error' ? '#c00' : type === 'success' ? '#060' : '#006',
+        border: `1px solid ${type === 'error' ? '#fcc' : type === 'success' ? '#cfc' : '#ccf'}`
+    });
+    div.textContent = message;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 3000);
+}
+
+// 统一的加载状态管理
+function showLoading(show = true, containerId = null) {
+    if (containerId) {
+        const container = document.getElementById(containerId);
+        if (container) {
+            if (show) {
+                container.innerHTML = '<div class="loading">正在加载数据...</div>';
+            }
+        }
+    }
+}
+
 // 导出给全局使用
 window.API_CONFIG = API_CONFIG;
 window.apiRequest = apiRequest;
+window.showError = showError;
+window.showLoading = showLoading;

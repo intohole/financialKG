@@ -21,7 +21,7 @@
 from typing import List, Dict, Optional, Any, Set
 from dataclasses import dataclass
 from datetime import datetime
-
+from pydantic import Field
 
 
 
@@ -302,22 +302,33 @@ class ContentSummary:
         importance_reason (str): 重要性评分理由，默认为空字符串
         success (bool): 是否成功生成摘要，默认为True
         error (Optional[str]): 错误信息，失败时提供
+        source (Optional[str]): 内容来源
+        publish_time (Optional[str]): 发布时间
     
     使用示例：
         >>> summary = ContentSummary(
         ...     summary="苹果公司发布了新款iPhone，市场反应积极",
         ...     keywords=["苹果", "iPhone", "发布", "市场"],
         ...     importance_score=8,
-        ...     importance_reason="涉及重要产品发布信息"
+        ...     importance_reason="涉及重要产品发布信息",
+        ...     source="科技新闻",
+        ...     publish_time="2024-01-15T10:30:00Z"
         ... )
         >>> summary_dict = summary.to_dict()
     """
-    summary: str
-    keywords: List[str]
-    importance_score: int
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    keywords: List[str] = None
+    importance_score: int = 0
     original_length: int = 0
     summary_length: int = 0
     compression_ratio: float = 0.0
     importance_reason: str = ""
     success: bool = True
     error: Optional[str] = None
+    source: Optional[str] = None
+    publish_time: Optional[str] = None
+    
+    def __post_init__(self):
+        if self.keywords is None:
+            self.keywords = []

@@ -49,9 +49,9 @@ class Relation:
 @dataclass
 class NewsEvent:
     """新闻事件数据模型"""
-    id: Optional[int]
     title: str
-    content: Optional[str]
+    content: Optional[str] = None
+    id: Optional[int] = None
     source: Optional[str] = None
     publish_time: Optional[datetime] = None
     created_at: Optional[datetime] = None

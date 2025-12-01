@@ -160,6 +160,7 @@ class ContentSummarizer(BaseService):
             
             # 提取字段
             summary = data.get('summary', '')
+            title = data.get('title', '')
             keywords = data.get('keywords', [])
             importance = data.get('importance', 5)
             reasoning = data.get('reasoning', '')
@@ -175,6 +176,7 @@ class ContentSummarizer(BaseService):
                 importance = 5
             
             return ContentSummary(
+                title=title,
                 summary=summary,
                 keywords=keywords,
                 importance_score=importance,

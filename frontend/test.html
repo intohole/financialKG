@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API测试</title>
+</head>
+<body>
+    <h1>API配置测试</h1>
+    <div id="result"></div>
+    
+    <script src="config.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const result = document.getElementById('result');
+            
+            result.innerHTML = '<h2>配置信息:</h2>';
+            result.innerHTML += '<p>API_CONFIG: ' + (typeof window.API_CONFIG !== 'undefined' ? JSON.stringify(window.API_CONFIG) : '未定义') + '</p>';
+            result.innerHTML += '<p>apiRequest函数: ' + (typeof window.apiRequest !== 'undefined' ? '已定义' : '未定义') + '</p>';
+            result.innerHTML += '<p>showError函数: ' + (typeof window.showError !== 'undefined' ? '已定义' : '未定义') + '</p>';
+            
+            if (typeof window.apiRequest === 'function') {
+                result.innerHTML += '<h3>测试API请求:</h3>';
+                window.apiRequest('/entities?page=1&page_size=5')
+                    .then(data => {
+                        result.innerHTML += '<p style="color: green;">API请求成功!</p>';
+                        result.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                    })
+                    .catch(error => {
+                        result.innerHTML += '<p style="color: red;">API请求失败: ' + error.message + '</p>';
+                        console.error('API请求失败:', error);
+                    });
+            }
+        });
+    </script>
+</body>
+</html>

@@ -105,10 +105,7 @@ async def process_content(
         # 2. 使用上下文管理器获取服务实例
         async with get_kg_core_service() as kg_core_service:
             # 3. 调用核心服务处理内容
-            knowledge_graph = await kg_core_service.process_content(
-                request.content, 
-                request.content_id
-            )
+            knowledge_graph = await kg_core_service.process_content(request.content)
             
             # 4. 性能监控
             processing_time = asyncio.get_event_loop().time() - start_time

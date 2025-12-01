@@ -225,6 +225,110 @@ async def get_common_news_for_entities(
         raise HTTPException(status_code=500, detail=f"获取多实体共同新闻失败: {str(e)}")
 
 
+# ==================== 新闻列表查询API ====================
+
+@router.get("/news", summary="获取新闻列表")
+async def get_news_list(
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    page_size: int = Query(20, ge=1, le=100, description="每页数量"),
+    search: Optional[str] = Query(None, description="搜索关键词（标题和内容）"),
+    source: Optional[str] = Query(None, description="新闻来源过滤"),
+    start_date: Optional[datetime] = Query(None, description="开始日期"),
+    end_date: Optional[datetime] = Query(None, description="结束日期"),
+    sort_by: str = Query("publish_time", description="排序字段"),
+    sort_order: str = Query("desc", regex="^(asc|desc)$", description="排序方向"),
+    query_service: KGQueryService = Depends(get_query_service)
+):
+    """
+    获取新闻列表，支持分页、搜索和多维度过滤
+    
+    返回统一的分页格式：
+    - items: 新闻数据列表
+       - total: 总数量
+    - page: 当前页码
+    - page_size: 每页数量
+    - total_pages: 总页数
+    """
+    logger.info(f"获取新闻列表: page={page}, page_size={page_size}, search={search}, source={source}")
+    
+    try:
+        result = await query_service.get_news_list(
+            page=page,
+            page_size=page_size,
+            search=search,
+            source=source,
+            start_date=start_date,
+            end_date=end_date,
+            sort_by=sort_by,
+            sort_order=sort_order
+        )
+        logger.info(f"成功获取新闻列表: {result['total']}条新闻")
+        return result
+    except Exception as e:
+        await handle_service_exception("获取新闻列表", e)
+
+
+@router.get("/news/search", summary="搜索新闻（向量搜索）")
+async def search_news(
+    query: str = Query(..., min_length=1, description="搜索查询词"),
+    top_k: int = Query(20, ge=1, le=100, description="返回结果数量"),
+    start_date: Optional[datetime] = Query(None, description="开始日期"),
+    end_date: Optional[datetime] = Query(None, description="结束日期"),
+    query_service: KGQueryService = Depends(get_query_service)
+):
+    """
+    使用向量搜索技术搜索新闻，支持语义搜索和时间范围过滤
+    
+    返回搜索结果列表，按相关性排序：
+    - news_event: 新闻对象
+    - score: 相关性分数
+    - metadata: 搜索元数据
+    """
+    logger.info(f"搜索新闻: query='{query}', top_k={top_k}")
+    
+    try:
+        # 使用KGQueryService的新闻搜索功能
+        result = await query_service.news_search_service.search_news(
+            query=query,
+            top_k=top_k,
+            start_date=start_date,
+            end_date=end_date,
+            enable_hybrid=True
+        )
+        
+        # 转换结果为前端友好的格式
+        formatted_results = []
+        for item in result.get("results", []):
+            news_event = item["news_event"]
+            formatted_results.append({
+                "news_event": {
+                    "id": news_event.id,
+                    "title": news_event.title,
+                    "content": news_event.content,
+                    "summary": news_event.summary,
+                    "url": news_event.url,
+                    "source": news_event.source,
+                    "published_at": news_event.publish_time.isoformat() if news_event.publish_time else None,
+                    "sentiment": news_event.sentiment,
+                    "category": news_event.category
+                },
+                "score": item["score"],
+                "metadata": item["metadata"]
+            })
+        
+        logger.info(f"搜索新闻完成: 找到{len(formatted_results)}个结果")
+        return {
+            "results": formatted_results,
+            "query": query,
+            "total": result.get("total", 0),
+            "search_type": result.get("search_type", "database"),
+            "fusion_weights": result.get("fusion_weights", {})
+        }
+        
+    except Exception as e:
+        await handle_service_exception("搜索新闻", e)
+
+
 # ==================== 新闻-实体关联API ====================
 
 @router.get("/news/{news_id}/entities", summary="获取新闻相关的实体")
@@ -326,6 +430,3 @@ def register_routes(app):
     ```
     """
     app.include_router(router)
-    
-    # 可以添加更多路由
-    # app.include_router(other_router, prefix="/api/v2")

@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>实体管理 - 知识图谱</title>
+    <title>新闻管理 - 知识图谱</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="entities.css">
-
+    <link rel="stylesheet" href="news.css">
 </head>
 <body>
     <div class="header">
         <div class="container">
             <div class="header-content">
-                <h1>实体管理</h1>
+                <h1>新闻管理</h1>
                 <nav class="nav-links">
                     <a href="index.html">首页</a>
                     <a href="content.html">内容处理</a>
@@ -25,35 +24,35 @@
     </div>
 
     <div class="container main-content">
+        <div id="error-container" style="display: none;"></div>
+        
         <div class="search-section">
             <div class="search-form">
                 <div class="form-group">
-                    <label class="form-label">搜索实体</label>
-                    <input type="text" id="searchKeyword" class="form-control" placeholder="输入实体名称或描述..." onkeypress="handleEnter(event)">
+                    <label class="form-label">搜索关键词</label>
+                    <input type="text" id="searchKeyword" class="form-control" placeholder="输入新闻标题或内容关键词..." onkeypress="handleEnter(event)">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">实体类型</label>
-                    <select id="entityType" class="form-control">
-                        <option value="">全部类型</option>
-                        <option value="person">人物</option>
-                        <option value="organization">组织</option>
-                        <option value="location">地点</option>
-                        <option value="event">事件</option>
-                        <option value="product">产品</option>
+                    <label class="form-label">时间范围</label>
+                    <select id="timeRange" class="form-control">
+                        <option value="">全部时间</option>
+                        <option value="today">今天</option>
+                        <option value="week">本周</option>
+                        <option value="month">本月</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <button class="btn btn-primary" onclick="searchEntities()">搜索</button>
+                    <button class="btn btn-primary" onclick="searchNews()">搜索</button>
                     <button class="btn btn-secondary" onclick="resetSearch()" style="margin-top: 8px;">重置</button>
                 </div>
             </div>
         </div>
 
-        <div id="entities-container"></div>
+        <div id="news-container"></div>
         <div id="pagination-container"></div>
     </div>
 
     <script src="config.js"></script>
-    <script src="entities.js"></script>
+    <script src="news.js"></script>
 </body>
 </html>

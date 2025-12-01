@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.models import Entity, Relation, Attribute, NewsEvent, news_event_entity
 from app.database.repositories import EntityRepository, RelationRepository, NewsEventRepository
 from app.utils.logging_utils import get_logger
+from app.services.news_search_service import NewsSearchService
 
 logger = get_logger(__name__)
 
@@ -29,11 +30,13 @@ class KGQueryService:
     所有查询方法都返回前端友好的数据结构，支持分页、过滤和排序
     """
     
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session):
+        """初始化查询服务"""
         self.session = session
         self.entity_repo = EntityRepository(session)
         self.relation_repo = RelationRepository(session)
         self.news_repo = NewsEventRepository(session)
+        self.news_search_service = NewsSearchService(session)
     
     # ==================== 实体查询功能 ====================
     
@@ -688,3 +691,112 @@ class KGQueryService:
             return getattr(entity, 'confidence', 0.0) if entity else 0.0
         except:
             return 0.0
+    
+    # ==================== 新闻列表查询功能 ====================
+    
+    async def get_news_list(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        search: Optional[str] = None,
+        source: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        sort_by: str = "publish_time",
+        sort_order: str = "desc"
+    ) -> Dict[str, Any]:
+        """
+        获取新闻列表 - 支持分页、搜索和时间过滤
+        
+        Args:
+            page: 页码，从1开始
+            page_size: 每页数量
+            search: 搜索关键词（匹配标题和内容）
+            source: 新闻来源过滤
+            start_date: 开始日期过滤
+            end_date: 结束日期过滤
+            sort_by: 排序字段
+            sort_order: 排序方向 (asc/desc)
+            
+        Returns:
+            {
+                "items": List[新闻数据],
+                "total": 总数量,
+                "page": 当前页码,
+                "page_size": 每页数量,
+                "total_pages": 总页数
+            }
+        """
+        try:
+            # 构建基础查询
+            stmt = select(NewsEvent)
+            
+            # 应用过滤条件
+            conditions = []
+            if search:
+                conditions.append(
+                    or_(
+                        NewsEvent.title.ilike(f"%{search}%"),
+                        NewsEvent.content.ilike(f"%{search}%")
+                    )
+                )
+            if source:
+                conditions.append(NewsEvent.source == source)
+            if start_date:
+                conditions.append(NewsEvent.publish_time >= start_date)
+            if end_date:
+                conditions.append(NewsEvent.publish_time <= end_date)
+            
+            if conditions:
+                stmt = stmt.where(and_(*conditions))
+            
+            # 应用排序
+            order_field = getattr(NewsEvent, sort_by, NewsEvent.publish_time)
+            if sort_order == "desc":
+                stmt = stmt.order_by(order_field.desc())
+            else:
+                stmt = stmt.order_by(order_field)
+            
+            # 计算总数
+            count_stmt = select(func.count(NewsEvent.id))
+            if conditions:
+                count_stmt = count_stmt.where(and_(*conditions))
+            
+            total_result = await self.session.execute(count_stmt)
+            total = total_result.scalar()
+            
+            # 分页查询
+            offset = (page - 1) * page_size
+            stmt = stmt.offset(offset).limit(page_size)
+            
+            result = await self.session.execute(stmt)
+            news_list = result.scalars().all()
+            
+            # 转换为前端友好的格式
+            items = []
+            for news in news_list:
+                items.append({
+                    "id": news.id,
+                    "title": news.title,
+                    "content": news.content[:500] + "..." if len(news.content) > 500 else news.content,
+                    "summary": news.summary,
+                    "url": news.url,
+                    "source": news.source,
+                    "published_at": news.publish_time.isoformat() if news.publish_time else None,
+                    "sentiment": getattr(news, 'sentiment', None),
+                    "category": getattr(news, 'category', None),
+                    "created_at": news.created_at.isoformat() if news.created_at else None,
+                    "updated_at": news.updated_at.isoformat() if news.updated_at else None
+                })
+            
+            return {
+                "items": items,
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "total_pages": (total + page_size - 1) // page_size
+            }
+            
+        except Exception as e:
+            logger.error(f"获取新闻列表失败: {e}")
+            raise

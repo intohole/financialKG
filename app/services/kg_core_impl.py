@@ -8,7 +8,8 @@ from app.core.base_service import BaseService
 from app.core.content_summarizer import ContentSummarizer
 from app.core.content_processor import ContentProcessor
 from app.core.entity_analyzer import EntityAnalyzer
-from app.core.extract_models import Entity, Relation, KnowledgeGraph
+from app.core.extract_models import Entity, Relation, KnowledgeGraph, ContentSummary
+from app.store.store_base_abstract import NewsEvent
 from app.store import HybridStoreCore
 from app.config.config_manager import ConfigManager
 from app.services.kg_core_abstract import KGCoreAbstractService
@@ -35,9 +36,8 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
         # 初始化embedding维度：优先使用传入参数，其次从配置获取
         self._embedding_dimension = embedding_dimension or self._get_embedding_dimension_from_config()
         
-        # 自动初始化store
-        if auto_init_store:
-            self._init_store()
+        # 自动初始化store（延迟到需要时再进行）
+        self._auto_init_pending = auto_init_store
                 
         logger.info("KGCoreImplService 初始化完成")
     
@@ -126,6 +126,13 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             Optional[int]: embedding维度，如果未指定则返回None
         """
         return self._embedding_dimension
+    
+    async def _ensure_store_initialized(self):
+        """确保store已初始化"""
+        if self.store is None and self._auto_init_pending:
+            logger.info("需要自动初始化store...")
+            await self._init_store()
+            self._auto_init_pending = False
 
     async def initialize(self, store: Optional[HybridStoreCore] = None) -> None:
         """
@@ -154,13 +161,12 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             self._embedding_dimension = await self._get_embedding_dimension_from_service()
             logger.info(f"从embedding服务获取维度: {self._embedding_dimension}")
 
-    async def process_content(self, content: str, content_id: Optional[str] = None) -> KnowledgeGraph:
+    async def process_content(self, content: str) -> KnowledgeGraph:
         """
         处理内容并构建知识图谱：严格按照todo要求实现核心流程
         
         Args:
             content: 要处理的文本内容
-            content_id: 内容ID（可选）
             
         Returns:
             KnowledgeGraph: 构建的知识图谱
@@ -169,6 +175,9 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             ValueError: 当内容为空或无效时
             RuntimeError: 当处理过程中出现错误时
         """
+        # 确保store已初始化
+        await self._ensure_store_initialized()
+        
         if not self.store:
             raise RuntimeError("存储未初始化，请先调用initialize方法")
         
@@ -188,7 +197,9 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             )
             logger.info(f"内容分类结果: {classification_result.category}, 置信度: {classification_result.confidence}")
             
-            # 根据获取到的分类，使用self.content_processor.extract_entities_and_relations 获取实体和实体关系
+            # 创建新闻事件记录（在生成摘要后进行，存储摘要数据）
+          
+            
             if classification_result and classification_result.category:
                 category_name = classification_result.category
                 logger.info(f"使用分类: {category_name}")
@@ -212,15 +223,25 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             # 处理关系
             await self._process_relations(extraction_result.knowledge_graph.relations, processed_entities)
             
-            # 根据content_summarizer 对内容进行摘要,并存储摘要,并与实体关联
-            summary = await self._process_content_summary(content, processed_entities)
+            # 生成内容摘要并创建新闻事件
+            summary_result = await self._process_content_summary(content, processed_entities)
+            
+            # 使用ContentSummary创建新闻事件（可选流程）
+            await self._create_news_event_from_summary(
+                summary_result, 
+                classification_result.category,
+                len(processed_entities),
+                len(extraction_result.knowledge_graph.relations)
+            )
+            
             
             # 构建知识图谱
             metadata = {
-                "content_id": content_id,
                 "content_length": len(content),
                 "extraction_timestamp": datetime.now().isoformat(),
-                "summary": summary
+                "summary": summary_result.summary if summary_result else "",
+                "entities_count": len(processed_entities),
+                "relations_count": len(extraction_result.knowledge_graph.relations)
             }
             
             knowledge_graph = KnowledgeGraph(
@@ -360,7 +381,7 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
         
         logger.info(f"关系处理完成，共处理 {total_relations} 个关系")
         
-    async def _process_content_summary(self, content: str, entities: Dict[str, Entity]) -> str:
+    async def _process_content_summary(self, content: str, entities: Dict[str, Entity]) -> Optional[ContentSummary]:
         """
         处理内容摘要：生成摘要并与实体关联
         
@@ -369,23 +390,75 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             entities: 处理后的实体映射
             
         Returns:
-            生成的摘要内容
+            生成的摘要对象，失败时返回None
         """
         try:
             logger.info(f"开始生成内容摘要，内容长度: {len(content)} 字符")
             
             # 生成内容摘要
             summary_result = await self.content_summarizer.generate_summary(content)
-            logger.info(f"生成摘要完成，长度: {len(summary_result.summary)} 字符")
+            logger.info(f"生成摘要完成，标题: {summary_result.title}, 长度: {len(summary_result.summary)} 字符")
             entity_names = list(entities.keys())
             logger.info(f"摘要与以下 {len(entity_names)} 个实体关联: {entity_names[:10]}")  # 只显示前10个
             if len(entity_names) > 10:
                 logger.info(f"... 还有 {len(entity_names) - 10} 个实体")
-            return summary_result.summary
-            
+            return summary_result
         except Exception as e:
-            logger.error(f"处理内容摘要失败: {e}")
-            return ""
+            logger.error(f"生成内容摘要失败: {e}")
+            return None
+    
+    async def _create_news_event_from_summary(
+        self, 
+        summary_result: Optional[ContentSummary], 
+        category: str,
+        entities_count: int,
+        relations_count: int
+    ) -> None:
+        """
+        从内容摘要创建新闻事件
+        
+        Args:
+            summary_result: 内容摘要结果
+            category: 内容分类
+            entities_count: 实体数量
+            relations_count: 关系数量
+        """
+        if not summary_result or not summary_result.title:
+            logger.info("摘要结果无效，跳过创建新闻事件")
+            return
+            
+        try:
+            # 验证摘要数据的有效性
+            if not isinstance(summary_result.keywords, (list, tuple)):
+                logger.warning(f"关键词格式异常，期望list/tuple，实际为{type(summary_result.keywords)}")
+                keywords = []
+            else:
+                keywords = list(summary_result.keywords)
+            
+            news_event = NewsEvent(
+                title=summary_result.title,
+                content=summary_result.summary,
+                source="kg_content_processor",
+                publish_time=datetime.now(),
+                metadata={
+                    "category": category,
+                    "keywords": keywords,
+                    "importance_score": summary_result.importance_score or 0.0,
+                    "entities_count": entities_count,
+                    "relations_count": relations_count,
+                    "summary_quality": "ai_generated"
+                }
+            )
+            
+            created_news = await self.store.create_news_event(news_event)
+            logger.info(f"成功创建新闻事件: ID={created_news.id}, title={created_news.title}, category={category}")
+            
+        except ValueError as e:
+            logger.error(f"创建新闻事件参数验证失败: {e}")
+        except ConnectionError as e:
+            logger.error(f"存储连接失败，无法创建新闻事件: {e}")
+        except Exception as e:
+            logger.error(f"创建新闻事件时发生未知错误: {e}", exc_info=True)
 
     async def query_knowledge(self, query: str) -> str:
         """
@@ -397,6 +470,9 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
         Returns:
             查询结果
         """
+        # 确保store已初始化
+        await self._ensure_store_initialized()
+        
         if not self.store:
             raise RuntimeError("存储未初始化，请先调用initialize方法")
         
