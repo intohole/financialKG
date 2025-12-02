@@ -413,6 +413,17 @@ function getEntityTypeLabel(type) {
         event: '事件',
         product: '产品',
         concept: '概念',
+        company: '公司',
+        business: '企业',
+        technology: '科技公司',
+        brand: '品牌',
+        institution: '机构',
+        government: '政府',
+        school: '学校',
+        hospital: '医院',
+        city: '城市',
+        country: '国家',
+        province: '省份',
         other: '其他'
     };
     return labels[type] || type || '未知';

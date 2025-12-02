@@ -51,31 +51,7 @@ def create_app() -> FastAPI:
     # 注册知识图谱内容处理路由
     register_kg_content_routes(app)
     
-    # 配置静态文件服务 - 挂载前端文件
-    frontend_path = Path(__file__).parent.parent / "frontend"
-    if frontend_path.exists():
-        app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
-        
-        # 添加根路径重定向到index.html
-        @app.get("/")
-        async def serve_index():
-            from fastapi.responses import FileResponse
-            index_file = frontend_path / "index.html"
-            if index_file.exists():
-                return FileResponse(str(index_file))
-            return {
-                "message": "多类别知识图谱API服务",
-                "version": "2.0.0",
-                "features": [
-                    "多类别知识提取（金融、科技、医疗、教育）",
-                    "类别兼容性检查",
-                    "实体相似度比较",
-                    "实体消歧与合并"
-                ],
-                "docs": "/docs"
-            }
-    
-    # API根路径信息
+    # API根路径信息 - 必须在静态文件之前定义
     @app.get("/api")
     async def api_root():
         return {
@@ -89,6 +65,13 @@ def create_app() -> FastAPI:
             ],
             "docs": "/docs"
         }
+    
+    # 配置静态文件服务 - 挂载前端文件（必须在最后，作为后备服务）
+    frontend_path = Path(__file__).parent.parent / "frontend"
+    if frontend_path.exists():
+        # 将前端文件挂载到根路径，支持HTML文件自动服务
+        # 注意：静态文件服务需要在API路由注册之后挂载，以确保API路由优先
+        app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
     
     return app
 
