@@ -304,13 +304,11 @@ async def search_news(
                 "news_event": {
                     "id": getattr(news_event, 'id', None),
                     "title": getattr(news_event, 'title', None),
-                    "content": getattr(news_event, 'content', None),
-                    "summary": getattr(news_event, 'summary', None),
-                    "url": getattr(news_event, 'url', None),
+                    "content": (getattr(news_event, 'content', '')[:300] + "..." if len(getattr(news_event, 'content', '')) > 300 else getattr(news_event, 'content', '')),
                     "source": getattr(news_event, 'source', None),
                     "published_at": getattr(news_event, 'publish_time', None).isoformat() if getattr(news_event, 'publish_time', None) else None,
-                    "sentiment": getattr(news_event, 'sentiment', None),
-                    "category": getattr(news_event, 'category', None)
+                    "created_at": getattr(news_event, 'created_at', None).isoformat() if getattr(news_event, 'created_at', None) else None,
+                    "updated_at": getattr(news_event, 'updated_at', None).isoformat() if getattr(news_event, 'updated_at', None) else None
                 },
                 "score": item["score"],
                 "metadata": item["metadata"]

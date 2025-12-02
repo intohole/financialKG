@@ -296,21 +296,18 @@ class NewsSearchService:
             )
             
             # 转换为前端友好的格式
-        return [
-            {
-                "id": getattr(news, 'id', None),
-                "title": getattr(news, 'title', None),
-                "content": getattr(news, 'content', None),
-                "summary": getattr(news, 'summary', None),
-                "url": getattr(news, 'url', None),
-                "source": getattr(news, 'source', None),
-                "published_at": getattr(news, 'publish_time', None).isoformat() if getattr(news, 'publish_time', None) else None,
-                "sentiment": getattr(news, 'sentiment', None),
-                "category": getattr(news, 'category', None)
-            }
-            for news in recent_news
-        ]
-            
+            return [
+                {
+                    "id": getattr(news, 'id', None),
+                    "title": getattr(news, 'title', None),
+                    "content": (getattr(news, 'content', '')[:300] + "..." if len(getattr(news, 'content', '')) > 300 else getattr(news, 'content', '')),
+                    "source": getattr(news, 'source', None),
+                    "published_at": getattr(news, 'publish_time', None).isoformat() if getattr(news, 'publish_time', None) else None,
+                    "created_at": getattr(news, 'created_at', None).isoformat() if getattr(news, 'created_at', None) else None,
+                    "updated_at": getattr(news, 'updated_at', None).isoformat() if getattr(news, 'updated_at', None) else None
+                }
+                for news in recent_news
+            ]
         except Exception as e:
             logger.error(f"获取最近新闻失败: {e}")
             return []

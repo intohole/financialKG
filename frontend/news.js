@@ -135,7 +135,7 @@ function renderNews() {
                         <div class="news-title">${escapeHtml(news.title)}</div>
                         <div class="news-date">${formatDate(news.published_at || news.created_at)}</div>
                     </div>
-                    <div class="news-summary">${escapeHtml(truncateText(news.summary || news.content, 150))}</div>
+                    <div class="news-summary">${escapeHtml(truncateText(news.content, 150))}</div>
                     <div class="news-meta">
                         <div class="news-source">来源: ${escapeHtml(news.source || '未知')}</div>
                         <div class="news-actions">
@@ -257,7 +257,7 @@ async function showNewsDetails(newsId) {
                     
                     <div class="detail-section">
                         <h4>摘要</h4>
-                        <div class="detail-content">${escapeHtml(news.summary || news.content || '暂无摘要')}</div>
+                        <div class="detail-content">${escapeHtml(news.content || '暂无内容')}</div>
                     </div>
                     
                     <div class="detail-section">
