@@ -141,7 +141,7 @@ class KnowledgeGraphConfig:
 
 
     def get_categories_prompt(self):
-        return "\n".join([ f"- {category.category.name}: {category.category.description}" for category in self.categories.values()])
+        return "\n".join([ f"- {category_key} : {category.category.description}" for category_key,category in self.categories.items()])
 
 
 @dataclass

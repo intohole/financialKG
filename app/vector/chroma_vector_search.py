@@ -16,6 +16,7 @@ from app.exceptions.vector_exceptions import (
     DimensionMismatchError,
     InvalidVectorError,
     VectorSearchConnectionError,
+    VectorStoreConnectionError,
     QueryError,
     IndexOperationError,
     VectorOperationError,
@@ -125,7 +126,7 @@ class ChromaVectorSearch(VectorSearchBase):
             raise
         except Exception as e:
             logger.error(f"获取集合失败: {str(e)}")
-            raise VectorSearchConnectionError(f"获取集合失败: {str(e)}")
+            raise VectorStoreConnectionError(f"获取集合失败: {str(e)}")
 
     def create_index(self, index_name: str, dimension: int, **kwargs) -> bool:
         """
@@ -172,7 +173,7 @@ class ChromaVectorSearch(VectorSearchBase):
             raise
         except Exception as e:
             logger.error(f"创建索引失败: {str(e)}")
-            raise IndexOperationError("create", index_name, str(e))
+            raise IndexOperationError(f"create操作失败: {str(e)}", operation="create", index_name=index_name)
 
     def add_vectors(
         self,
@@ -548,7 +549,7 @@ class ChromaVectorSearch(VectorSearchBase):
             raise
         except Exception as e:
             logger.error(f"获取索引信息失败: {str(e)}")
-            raise IndexOperationError("get_info", index_name, str(e))
+            raise IndexOperationError(f"get_info操作失败: {str(e)}", operation="get_info", index_name=index_name)
 
     def list_indices(self) -> List[str]:
         """
@@ -564,7 +565,7 @@ class ChromaVectorSearch(VectorSearchBase):
             
         except Exception as e:
             logger.error(f"列出索引失败: {str(e)}")
-            raise IndexOperationError("list", "all", str(e))
+            raise IndexOperationError(f"list操作失败: {str(e)}", operation="list")
 
     def delete_index(self, index_name: str) -> bool:
         """
@@ -601,7 +602,7 @@ class ChromaVectorSearch(VectorSearchBase):
             raise
         except Exception as e:
             logger.error(f"删除索引失败: {str(e)}")
-            raise IndexOperationError("delete", index_name, str(e))
+            raise IndexOperationError(f"delete操作失败: {str(e)}", operation="delete", index_name=index_name)
 
     def count_vectors(self, index_name: str) -> int:
         """

@@ -5,6 +5,8 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 # from app.api.routes import router as knowledge_graph_router  # 该模块不存在
 from app.api.kg_query_routes import register_routes as register_kg_query_routes
@@ -49,9 +51,33 @@ def create_app() -> FastAPI:
     # 注册知识图谱内容处理路由
     register_kg_content_routes(app)
     
-    # 根路径
-    @app.get("/")
-    async def root():
+    # 配置静态文件服务 - 挂载前端文件
+    frontend_path = Path(__file__).parent.parent / "frontend"
+    if frontend_path.exists():
+        app.mount("/static", StaticFiles(directory=str(frontend_path)), name="static")
+        
+        # 添加根路径重定向到index.html
+        @app.get("/")
+        async def serve_index():
+            from fastapi.responses import FileResponse
+            index_file = frontend_path / "index.html"
+            if index_file.exists():
+                return FileResponse(str(index_file))
+            return {
+                "message": "多类别知识图谱API服务",
+                "version": "2.0.0",
+                "features": [
+                    "多类别知识提取（金融、科技、医疗、教育）",
+                    "类别兼容性检查",
+                    "实体相似度比较",
+                    "实体消歧与合并"
+                ],
+                "docs": "/docs"
+            }
+    
+    # API根路径信息
+    @app.get("/api")
+    async def api_root():
         return {
             "message": "多类别知识图谱API服务",
             "version": "2.0.0",
@@ -78,7 +104,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",
-        port=8000,
+        port=8066,
         reload=True,
         log_level="info"
     )

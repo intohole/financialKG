@@ -40,7 +40,7 @@ embedding:
 
 # 数据库配置
 database:
-  url: "sqlite+aiosqlite:///./financial_kg.db"
+  url: "sqlite+aiosqlite:///./data/financial_kg.db"
   echo: false
   pool_pre_ping: true
   pool_recycle: 3600

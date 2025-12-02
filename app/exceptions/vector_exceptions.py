@@ -19,7 +19,10 @@ class VectorSearchError(BaseException):
             message: 错误消息
             **kwargs: 额外信息
         """
-        super().__init__(message, error_code="VECTOR_SEARCH_ERROR", **kwargs)
+        # 避免重复参数
+        if 'error_code' not in kwargs:
+            kwargs['error_code'] = "VECTOR_SEARCH_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class IndexNotFoundError(VectorSearchError):
@@ -27,16 +30,20 @@ class IndexNotFoundError(VectorSearchError):
     
     当向量索引不存在时抛出
     """
-    def __init__(self, message: str, index_name: str = None, **kwargs):
+    def __init__(self, index_name: str = None, message: str = None, **kwargs):
         """初始化异常
         
         Args:
-            message: 错误消息
             index_name: 索引名称
+            message: 错误消息（可选，如果不提供则自动生成）
             **kwargs: 额外信息
         """
+        if message is None and index_name is not None:
+            message = f"索引 '{index_name}' 不存在"
         kwargs['index_name'] = index_name
-        super().__init__(message, error_code="INDEX_NOT_FOUND_ERROR", **kwargs)
+        # 不要重复传递error_code参数
+        kwargs['error_code'] = "INDEX_NOT_FOUND_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class DimensionMismatchError(VectorSearchError):
@@ -55,7 +62,8 @@ class DimensionMismatchError(VectorSearchError):
         """
         kwargs['expected_dim'] = expected_dim
         kwargs['actual_dim'] = actual_dim
-        super().__init__(message, error_code="DIMENSION_MISMATCH_ERROR", **kwargs)
+        kwargs['error_code'] = "DIMENSION_MISMATCH_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class CollectionNotFoundError(VectorSearchError):
@@ -72,7 +80,8 @@ class CollectionNotFoundError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['collection_name'] = collection_name
-        super().__init__(message, error_code="COLLECTION_NOT_FOUND_ERROR", **kwargs)
+        kwargs['error_code'] = "COLLECTION_NOT_FOUND_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class InvalidVectorError(VectorSearchError):
@@ -89,7 +98,8 @@ class InvalidVectorError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['vector_id'] = vector_id
-        super().__init__(message, error_code="INVALID_VECTOR_ERROR", **kwargs)
+        kwargs['error_code'] = "INVALID_VECTOR_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class VectorStoreConnectionError(VectorSearchError):
@@ -106,7 +116,8 @@ class VectorStoreConnectionError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['store_type'] = store_type
-        super().__init__(message, error_code="VECTOR_STORE_CONNECTION_ERROR", **kwargs)
+        kwargs['error_code'] = "VECTOR_STORE_CONNECTION_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class SearchTimeoutError(VectorSearchError):
@@ -123,7 +134,8 @@ class SearchTimeoutError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['timeout_seconds'] = timeout_seconds
-        super().__init__(message, error_code="SEARCH_TIMEOUT_ERROR", **kwargs)
+        kwargs['error_code'] = "SEARCH_TIMEOUT_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class InsufficientResourcesError(VectorSearchError):
@@ -140,7 +152,8 @@ class InsufficientResourcesError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['required_resources'] = required_resources
-        super().__init__(message, error_code="INSUFFICIENT_RESOURCES_ERROR", **kwargs)
+        kwargs['error_code'] = "INSUFFICIENT_RESOURCES_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class EmbeddingServiceError(VectorSearchError):
@@ -157,7 +170,8 @@ class EmbeddingServiceError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['service_name'] = service_name
-        super().__init__(message, error_code="EMBEDDING_SERVICE_ERROR", **kwargs)
+        kwargs['error_code'] = "EMBEDDING_SERVICE_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class MetadataError(VectorSearchError):
@@ -174,7 +188,8 @@ class MetadataError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['metadata_key'] = metadata_key
-        super().__init__(message, error_code="METADATA_ERROR", **kwargs)
+        kwargs['error_code'] = "METADATA_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class BatchOperationError(VectorSearchError):
@@ -193,7 +208,8 @@ class BatchOperationError(VectorSearchError):
         """
         kwargs['batch_size'] = batch_size
         kwargs['failed_count'] = failed_count
-        super().__init__(message, error_code="BATCH_OPERATION_ERROR", **kwargs)
+        kwargs['error_code'] = "BATCH_OPERATION_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class FilterError(VectorSearchError):
@@ -210,7 +226,8 @@ class FilterError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['filter_condition'] = filter_condition
-        super().__init__(message, error_code="FILTER_ERROR", **kwargs)
+        kwargs['error_code'] = "FILTER_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class DistanceMetricError(VectorSearchError):
@@ -227,7 +244,8 @@ class DistanceMetricError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['metric'] = metric
-        super().__init__(message, error_code="DISTANCE_METRIC_ERROR", **kwargs)
+        kwargs['error_code'] = "DISTANCE_METRIC_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class VectorIndexError(VectorSearchError):
@@ -244,7 +262,8 @@ class VectorIndexError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['operation'] = operation
-        super().__init__(message, error_code="VECTOR_INDEX_ERROR", **kwargs)
+        kwargs['error_code'] = "VECTOR_INDEX_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class OptimizationError(VectorSearchError):
@@ -261,7 +280,8 @@ class OptimizationError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['optimization_type'] = optimization_type
-        super().__init__(message, error_code="OPTIMIZATION_ERROR", **kwargs)
+        kwargs['error_code'] = "OPTIMIZATION_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class IndexAlreadyExistsError(VectorSearchError):
@@ -275,7 +295,8 @@ class IndexAlreadyExistsError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['index_name'] = index_name
-        super().__init__(message, error_code="INDEX_ALREADY_EXISTS_ERROR", **kwargs)
+        kwargs['error_code'] = "INDEX_ALREADY_EXISTS_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class VectorNotFoundError(VectorSearchError):
@@ -289,7 +310,8 @@ class VectorNotFoundError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['vector_id'] = vector_id
-        super().__init__(message, error_code="VECTOR_NOT_FOUND_ERROR", **kwargs)
+        kwargs['error_code'] = "VECTOR_NOT_FOUND_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class VectorSearchConnectionError(VectorSearchError):
@@ -301,7 +323,8 @@ class VectorSearchConnectionError(VectorSearchError):
             message: 错误消息
             **kwargs: 额外信息
         """
-        super().__init__(message, error_code="VECTOR_SEARCH_CONNECTION_ERROR", **kwargs)
+        kwargs['error_code'] = "VECTOR_SEARCH_CONNECTION_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class VectorSearchTimeoutError(VectorSearchError):
@@ -314,7 +337,8 @@ class VectorSearchTimeoutError(VectorSearchError):
             message: 错误消息
             **kwargs: 额外信息
         """
-        super().__init__(message, error_code="VECTOR_SEARCH_TIMEOUT_ERROR", **kwargs)
+        kwargs['error_code'] = "VECTOR_SEARCH_TIMEOUT_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class QueryError(VectorSearchError):
@@ -327,7 +351,8 @@ class QueryError(VectorSearchError):
             message: 错误消息
             **kwargs: 额外信息
         """
-        super().__init__(message, error_code="QUERY_ERROR", **kwargs)
+        kwargs['error_code'] = "QUERY_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class IndexOperationError(VectorIndexError):
@@ -341,7 +366,8 @@ class IndexOperationError(VectorIndexError):
             **kwargs: 额外信息
         """
         kwargs['operation'] = operation
-        super().__init__(message, error_code="INDEX_OPERATION_ERROR", **kwargs)
+        kwargs['error_code'] = "INDEX_OPERATION_ERROR"
+        super().__init__(message, **kwargs)
 
 
 class VectorOperationError(VectorSearchError):
@@ -355,4 +381,5 @@ class VectorOperationError(VectorSearchError):
             **kwargs: 额外信息
         """
         kwargs['operation'] = operation
-        super().__init__(message, error_code="VECTOR_OPERATION_ERROR", **kwargs)
+        kwargs['error_code'] = "VECTOR_OPERATION_ERROR"
+        super().__init__(message, **kwargs)

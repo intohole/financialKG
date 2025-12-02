@@ -371,10 +371,11 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                     processed_entities[entity_name] = stored_entity
                     continue
 
+                knowledge_config = self.config.get_knowledge_graph_config()
                 # 检查是否有完全匹配的实体
                 matched_entity = None
                 for result in similar_entities:
-                    if result.entity and result.entity.name == entity_name:
+                    if result.entity and (result.entity.name == entity_name or result.score > knowledge_config.similarity_threshold):
                         matched_entity = result.entity
                         break
                 
@@ -384,7 +385,7 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                     continue
 
                 # 准备候选实体列表
-                candidate_entities = [result.entity for result in similar_entities if result.entity and result.entity.name != entity_name]
+                candidate_entities = [result.entity for result in similar_entities]
                 
                 # 解析实体歧义
                 ambiguity_result = await self.entity_analyzer.resolve_entity_ambiguity(
@@ -392,7 +393,6 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                 )
 
                 if ambiguity_result.selected_entity:
-                    # 如果有选中的实体，使用选中的实体
                     selected_entity = ambiguity_result.selected_entity
                     logger.debug(f"实体 '{entity_name}' 与选中实体 '{selected_entity.name}' 匹配 (置信度: {ambiguity_result.confidence})")
                     processed_entities[entity_name] = selected_entity

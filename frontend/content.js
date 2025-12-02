@@ -21,7 +21,6 @@ function loadExampleText() {
 
 // 处理内容
 async function processContent() {
-    const contentId = document.getElementById('contentId').value.trim();
     const contentText = document.getElementById('contentText').value.trim();
     
     if (!contentText) {
@@ -35,7 +34,7 @@ async function processContent() {
         state.processing = true;
         showLoading();
         
-        const response = await window.KGAPI.processContent(contentText, contentId || null);
+        const response = await window.KGAPI.processContent(contentText);
         
         if (response.status === 'success') {
             state.lastResult = response.data;
@@ -120,7 +119,6 @@ function displayResult(result) {
 
 // 清空内容
 function clearContent() {
-    document.getElementById('contentId').value = '';
     document.getElementById('contentText').value = '';
     showMessage('内容已清空', 'info');
 }

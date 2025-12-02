@@ -16,13 +16,12 @@ const KGAPI = {
     /**
      * 处理文本内容并构建知识图谱
      * @param {string} content - 要处理的文本内容
-     * @param {string|null} content_id - 内容ID（可选）
      * @returns {Promise<Object>} 构建的知识图谱
      */
-    processContent: async (content, content_id = null) => {
+    processContent: async (content) => {
         return await apiRequest('/process-content', {
             method: 'POST',
-            body: JSON.stringify({ content, content_id })
+            body: JSON.stringify({ content })
         });
     },
 

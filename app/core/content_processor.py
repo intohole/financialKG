@@ -89,10 +89,8 @@ class ContentProcessor(BaseService):
             logger.info(f"开始内容分类，文本长度: {len(text)}")
             
             if prompt_key is None:
-                if categories or category_config:
-                    prompt_key = 'content_classification_enhanced'
-                else:
-                    prompt_key = 'content_classification'
+                prompt_key = 'content_classification_enhanced'
+
             
             # 使用参数构建器构建提示词参数
             prompt_params = self.parameter_builder.build_parameters(
@@ -150,7 +148,8 @@ class ContentProcessor(BaseService):
             
             # 记录参数构建的详细信息，便于问题排查
             logger.info(f"实体关系提取参数 - prompt_key: {prompt_key}, "
-                       f"entity_types: {entity_types}, relation_types: {relation_types}, ","current_category: {current_category}")
+                       f"entity_types: {entity_types}, relation_types: {relation_types}, "
+                       f"current_category: {current_category}")
             
             # 使用参数构建器构建提示词参数
             prompt_params = self.parameter_builder.build_parameters(

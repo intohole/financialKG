@@ -12,6 +12,7 @@
 - 异常处理：统一的异常处理
 """
 
+import asyncio
 from typing import List, Dict, Any, Optional
 
 from app.exceptions.store_exceptions import StoreError
@@ -58,12 +59,21 @@ class VectorIndexManager:
         try:
             # 尝试获取索引信息，如果不存在则创建
             try:
-                # get_index_info 是同步方法
-                self.vector_store.get_index_info(index_name)
+                # 使用线程池执行同步方法get_index_info
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    self.vector_store.get_index_info,
+                    index_name
+                )
                 logger.debug(f"索引已存在: {index_name}")
             except IndexNotFoundError:
-                # 创建索引 - create_index 是同步方法
-                self.vector_store.create_index(index_name, dimension=dimension)
+                # 使用线程池执行同步方法create_index
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    self.vector_store.create_index,
+                    index_name,
+                    dimension
+                )
                 logger.info(f"创建索引成功: {index_name}, 维度: {dimension}")
         except Exception as e:
             logger.error(f"确保索引存在失败: {e}")
