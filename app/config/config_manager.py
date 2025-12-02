@@ -136,6 +136,7 @@ class KnowledgeGraphConfig:
     categories: Dict[str, CategoryConfigItem]
     default_category: str
     similarity_threshold: float
+    filter_news_similarity_threshold: float
     max_entities_per_news: int
     entity_merging: EntityMergingConfig
 
@@ -417,7 +418,8 @@ class ConfigManager:
             default_category=config.get('default_category', 'financial'),
             similarity_threshold=config.get('similarity_threshold', 0.7),
             max_entities_per_news=config.get('max_entities_per_news', 50),
-            entity_merging=entity_merging
+            entity_merging=entity_merging,
+            filter_news_similarity_threshold=config.get('filter_similar_entities', 0.6),
         )
     
     def get_cache_config(self) -> CacheConfig:

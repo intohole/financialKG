@@ -157,8 +157,8 @@ class Relation:
 @dataclass
 class KnowledgeGraph:
     """知识图谱模型"""
-    entities: List[Entity]
-    relations: List[Relation]
+    entities: List[Entity] = None
+    relations: List[Relation] = None
     metadata: Optional[Dict[str, Any]] = None
     category: Optional[str] = None
 

@@ -228,12 +228,17 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             
             if not self._validate_store_initialized():
                 raise RuntimeError("存储未初始化，请先调用initialize方法")
-            
+            similar_events =  await self.store.search_news_events(content,top_k=5)
+            knowledge_graph_config = self.config.get_knowledge_graph_config()
+
+
+            if similar_events and max([e.score for e in similar_events]) > knowledge_graph_config.filter_news_similarity_threshold:
+                return KnowledgeGraph()
+
             self._log_operation_start("处理内容", 长度=len(content))
             
             # 获取配置
-            knowledge_graph_config = self.config.get_knowledge_graph_config()
-            
+
             # 1. 内容分类
             classification_result = await self.content_processor.classify_content(
                 content, 
