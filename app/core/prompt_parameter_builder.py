@@ -18,38 +18,23 @@ class ParameterBuilderLogger:
     def log_parameter_building(
         prompt_key: str,
         text_length: int,
-        entity_types: Optional[List[str]],
-        relation_types: Optional[List[str]],
-        category_config: Optional[Dict[str, Dict]],
-        current_category: str,
+        entity_types: Optional[str],
+        relation_types: Optional[str],
         final_params: Dict[str, Any]
     ) -> None:
         """记录参数构建的完整过程"""
         logger.info("=" * 60)
         logger.info(f"参数构建详情 - prompt_key: {prompt_key}")
         logger.info(f"文本长度: {text_length}")
-        logger.info(f"当前类别: {current_category}")
-        
+
         # 记录实体类型决策过程
         if entity_types is not None:
             logger.info(f"✓ 使用用户指定的实体类型: {entity_types}")
-        elif category_config and current_category in category_config:
-            category_data = category_config[current_category]
-            config_entity_types = category_data.get('entity_types', [])
-            logger.info(f"✓ 使用类别配置中的实体类型: {current_category} -> {config_entity_types}")
-        else:
-            logger.info(f"✓ 使用默认实体类型: {EntityRelationParameterBuilder.DEFAULT_ENTITY_TYPES}")
-        
+
         # 记录关系类型决策过程
         if relation_types is not None:
             logger.info(f"✓ 使用用户指定的关系类型: {relation_types}")
-        elif category_config and current_category in category_config:
-            category_data = category_config[current_category]
-            config_relation_types = category_data.get('relation_types', [])
-            logger.info(f"✓ 使用类别配置中的关系类型: {current_category} -> {config_relation_types}")
-        else:
-            logger.info(f"✓ 使用默认关系类型: {EntityRelationParameterBuilder.DEFAULT_RELATION_TYPES}")
-        
+
         # 记录最终参数
         logger.info(f"最终实体类型: {final_params.get('entity_types', 'N/A')}")
         logger.info(f"最终关系类型: {final_params.get('relation_types', 'N/A')}")
@@ -113,6 +98,7 @@ class ClassificationParameterBuilder(PromptParameterBuilder):
                         text: str,
                         prompt_key: str,
                         categories: Optional[List[str]] = None,
+                        categories_prompt:str = None,
                         category_config: Optional[Dict[str, Dict]] = None,
                         **kwargs) -> Dict[str, Any]:
         """构建分类任务参数"""
@@ -120,22 +106,21 @@ class ClassificationParameterBuilder(PromptParameterBuilder):
         params = {'text': text}
         
         # 只有增强版分类才需要额外的类别参数
-        if prompt_key == 'content_classification_enhanced':
             # 处理自定义类别 - categories优先于category_config
-            if categories:
-                params['categories'] = ", ".join(categories)
-            elif category_config:
+        if categories_prompt:
+            params['categories'] = categories_prompt
+        elif categories:
+            params['categories'] = ", ".join(categories)
+        elif category_config:
                 # 使用配置中的类别信息，包含名称和描述
-                category_info_parts = []
-                for category_key, category_data in category_config.items():
-                    name = category_data.get('name', category_key)
-                    description = category_data.get('description', '')
-                    category_info_parts.append(f"{category_key}({name}): {description}")
+            category_info_parts = []
+            for category_key, category_data in category_config.items():
+                name = category_data.get('name', category_key)
+                description = category_data.get('description', '')
+                category_info_parts.append(f"{category_key}({name}): {description}")
                 params['categories'] = "; ".join(category_info_parts)
-            else:
-                # 增强版默认类别配置
-                params['categories'] = "financial(金融财经): 金融、财经、股票、证券等相关内容; technology(科技互联网): 科技、互联网、人工智能等相关内容; medical(医疗健康): 医疗、健康、药品、生物科技等相关内容; education(教育培训): 教育、培训、学术等相关内容"
-        
+        else:
+            raise ValueError("No categories defined")
         return params
     
     def supports_prompt_key(self, prompt_key: str) -> bool:
@@ -146,56 +131,32 @@ class ClassificationParameterBuilder(PromptParameterBuilder):
 class EntityRelationParameterBuilder(PromptParameterBuilder):
     """实体关系提取参数构建器 - 统一版本"""
     
-    # 默认实体类型
-    DEFAULT_ENTITY_TYPES = ["公司/企业", "人物", "产品/服务", "地点", "事件", "概念/术语"]
-    
-    # 默认关系类型
-    DEFAULT_RELATION_TYPES = ["属于/子公司", "投资/收购", "合作/竞争", "位于", "参与", "影响"]
-    
+
+
     def build_parameters(self, 
                         text: str,
                         prompt_key: str,
-                        entity_types: Optional[List[str]] = None,
-                        relation_types: Optional[List[str]] = None,
-                        category_config: Optional[Dict[str, Dict]] = None,
+                        entity_types: Optional[str] = None,
+                        relation_types: Optional[str] = None,
                         **kwargs) -> Dict[str, Any]:
         """构建实体关系提取参数 - 确保动态性和可追踪性"""
         params = {'text': text}
         
-        # 获取当前类别配置（用于动态实体和关系类型）
-        current_category = kwargs.get('current_category', 'financial')
-        
+
         # 处理实体类型 - 严格的动态参数传递
         if entity_types is not None:
             # 用户明确指定了实体类型（包括空列表）
-            params['entity_types'] = ", ".join(entity_types) if entity_types else ""
+            params['entity_types'] = entity_types
             logger.debug(f"使用用户指定的实体类型: {entity_types}")
-        elif category_config and current_category in category_config:
-            # 使用类别配置中的实体类型
-            category_data = category_config[current_category]
-            entity_types_from_config = category_data.get('entity_types', self.DEFAULT_ENTITY_TYPES)
-            params['entity_types'] = ", ".join(entity_types_from_config)
-            logger.debug(f"使用类别配置中的实体类型: {current_category} -> {entity_types_from_config}")
         else:
-            # 使用默认实体类型
-            params['entity_types'] = ", ".join(self.DEFAULT_ENTITY_TYPES)
-            logger.debug(f"使用默认实体类型: {self.DEFAULT_ENTITY_TYPES}")
+            raise ValueError("No entity types defined")
         
         # 处理关系类型 - 严格的动态参数传递
         if relation_types is not None:
-            # 用户明确指定了关系类型（包括空列表）
-            params['relation_types'] = ", ".join(relation_types) if relation_types else ""
+            params['relation_types'] = relation_types
             logger.debug(f"使用用户指定的关系类型: {relation_types}")
-        elif category_config and current_category in category_config:
-            # 使用类别配置中的关系类型
-            category_data = category_config[current_category]
-            relation_types_from_config = category_data.get('relation_types', self.DEFAULT_RELATION_TYPES)
-            params['relation_types'] = ", ".join(relation_types_from_config)
-            logger.debug(f"使用类别配置中的关系类型: {current_category} -> {relation_types_from_config}")
         else:
-            # 使用默认关系类型
-            params['relation_types'] = ", ".join(self.DEFAULT_RELATION_TYPES)
-            logger.debug(f"使用默认关系类型: {self.DEFAULT_RELATION_TYPES}")
+            raise ValueError("No relation types defined")
         
         # 添加调试信息，便于问题排查
         logger.info(f"实体关系提取参数构建完成 - prompt_key: {prompt_key}, "
@@ -208,8 +169,6 @@ class EntityRelationParameterBuilder(PromptParameterBuilder):
             text_length=len(text),
             entity_types=entity_types,
             relation_types=relation_types,
-            category_config=category_config,
-            current_category=current_category,
             final_params=params
         )
         

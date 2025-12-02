@@ -133,6 +133,29 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             logger.info("需要自动初始化store...")
             await self._init_store()
             self._auto_init_pending = False
+            
+    def _validate_store_initialized(self) -> bool:
+        """验证store是否已初始化
+        
+        Returns:
+            bool: True表示已初始化，False表示未初始化
+        """
+        if not self.store:
+            logger.error("存储未初始化，请先调用initialize方法")
+            return False
+        return True
+        
+    def _handle_operation_error(self, operation: str, error: Exception) -> None:
+        """统一处理操作错误
+        
+        Args:
+            operation: 操作名称
+            error: 异常对象
+        """
+        logger.error(f"{operation}失败: {error}", exc_info=True)
+        if isinstance(error, (ValueError, RuntimeError)):
+            raise
+        raise RuntimeError(f"{operation}失败: {str(error)}")
 
     async def initialize(self, store: Optional[HybridStoreCore] = None) -> None:
         """
@@ -161,6 +184,30 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             self._embedding_dimension = await self._get_embedding_dimension_from_service()
             logger.info(f"从embedding服务获取维度: {self._embedding_dimension}")
 
+    def _log_operation_start(self, operation: str, **kwargs) -> None:
+        """记录操作开始日志
+        
+        Args:
+            operation: 操作名称
+            **kwargs: 额外的日志参数
+        """
+        log_parts = [f"开始{operation}"]
+        for key, value in kwargs.items():
+            log_parts.append(f"{key}: {value}")
+        logger.info(", ".join(log_parts))
+        
+    def _log_operation_success(self, operation: str, **kwargs) -> None:
+        """记录操作成功日志
+        
+        Args:
+            operation: 操作名称
+            **kwargs: 额外的日志参数
+        """
+        log_parts = [f"{operation}完成"]
+        for key, value in kwargs.items():
+            log_parts.append(f"{key}: {value}")
+        logger.info(", ".join(log_parts))
+            
     async def process_content(self, content: str) -> KnowledgeGraph:
         """
         处理内容并构建知识图谱：严格按照todo要求实现核心流程
@@ -175,56 +222,48 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             ValueError: 当内容为空或无效时
             RuntimeError: 当处理过程中出现错误时
         """
-        # 确保store已初始化
-        await self._ensure_store_initialized()
-        
-        if not self.store:
-            raise RuntimeError("存储未初始化，请先调用initialize方法")
-        
         try:
-            logger.info(f"开始处理内容，长度: {len(content)}")
+            # 确保store已初始化
+            await self._ensure_store_initialized()
             
-            # 获取类别变量，通过content_processor.classify_content 获取分类
-            kg_config = self.config.get_knowledge_graph_config()
-            category_config = self.config.get_config().get('knowledge_graph', {}).get('categories', {})
+            if not self._validate_store_initialized():
+                raise RuntimeError("存储未初始化，请先调用initialize方法")
+            
+            self._log_operation_start("处理内容", 长度=len(content))
+            
+            # 获取配置
+            knowledge_graph_config = self.config.get_knowledge_graph_config()
+            
+            # 1. 内容分类
             classification_result = await self.content_processor.classify_content(
                 content, 
-                category_config=category_config
+                categories_prompt=knowledge_graph_config.get_categories_prompt()
             )
             logger.info(f"内容分类结果: {classification_result.category}, 置信度: {classification_result.confidence}")
             
-            # 创建新闻事件记录（在生成摘要后进行，存储摘要数据）
-            
-            # 修复分类结果检查逻辑，避免不必要的 ValueError
-            category_name = classification_result.category if classification_result else None
-            if not category_name:
-                category_name = "general"  # 使用默认分类
-                logger.warning(f"无法获取分类结果，使用默认分类: {category_name}")
-            else:
-                logger.info(f"使用分类: {category_name}")
-            
-            category_info = category_config.get(category_name, {})
-            
-            entity_types = category_info.get('entity_types', kg_config.entity_types)
-            relation_types = category_info.get('relation_types', kg_config.relation_types)
+            # 确定分类
+            category_name = self._get_category_name(classification_result)
+            category_info = knowledge_graph_config.categories.get(category_name)
+            if not category_info:
+                raise ValueError(f"未知的分类: {category_name}")
+
+
             
             extraction_result = await self.content_processor.extract_entities_and_relations(
                 content, 
-                entity_types=entity_types,
-                relation_types=relation_types
+                entity_types=category_info.get_entity_types_prompt(),
+                relation_types=category_info.get_relation_types_prompt()
             )
-            logger.info(f"提取到 {len(extraction_result.knowledge_graph.entities)} 个实体, {len(extraction_result.knowledge_graph.relations)} 个关系")
+            self._log_operation_start("提取结果", 
+                                    实体数量=len(extraction_result.knowledge_graph.entities),
+                                    关系数量=len(extraction_result.knowledge_graph.relations))
             
-            # 处理实体：向量查找、消歧、合并存储
+            # 3. 处理实体和关系
             processed_entities = await self._process_entities_with_vector_search(extraction_result.knowledge_graph.entities)
-            
-            # 处理关系
             await self._process_relations(extraction_result.knowledge_graph.relations, processed_entities)
             
-            # 生成内容摘要并创建新闻事件
+            # 4. 生成摘要和创建新闻事件
             summary_result = await self._process_content_summary(content, processed_entities)
-            
-            # 使用ContentSummary创建新闻事件（可选流程）
             await self._create_news_event_from_summary(
                 summary_result, 
                 category_name,
@@ -232,28 +271,67 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                 len(extraction_result.knowledge_graph.relations)
             )
             
-            # 构建知识图谱
-            metadata = {
-                "content_length": len(content),
-                "extraction_timestamp": datetime.now().isoformat(),
-                "summary": summary_result.summary if summary_result else "",
-                "entities_count": len(processed_entities),
-                "relations_count": len(extraction_result.knowledge_graph.relations)
-            }
-            
-            knowledge_graph = KnowledgeGraph(
-                entities=list(processed_entities.values()),
-                relations=extraction_result.knowledge_graph.relations,
-                category=category_name,
-                metadata=metadata
+            # 5. 构建并返回知识图谱
+            knowledge_graph = await self._build_knowledge_graph(
+                content, 
+                processed_entities, 
+                extraction_result.knowledge_graph.relations,
+                category_name,
+                summary_result
             )
             
-            logger.info("内容处理完成")
+            self._log_operation_success("内容处理")
             return knowledge_graph
             
         except Exception as e:
-            logger.error(f"处理内容失败: {e}", exc_info=True)
-            raise  # 保留原始异常上下文
+            self._handle_operation_error("处理内容", e)
+    
+    def _get_category_name(self, classification_result) -> str:
+        """获取分类名称
+        
+        Args:
+            classification_result: 分类结果对象
+            
+        Returns:
+            str: 分类名称
+        """
+        category_name = classification_result.category if classification_result else None
+        if not category_name:
+            category_name = "general"  # 使用默认分类
+            logger.warning(f"无法获取分类结果，使用默认分类: {category_name}")
+        else:
+            logger.info(f"使用分类: {category_name}")
+        return category_name
+        
+    async def _build_knowledge_graph(self, content: str, entities: Dict[str, Entity], 
+                                    relations: List[Relation], category: str, 
+                                    summary_result) -> KnowledgeGraph:
+        """构建知识图谱
+        
+        Args:
+            content: 原始内容
+            entities: 处理后的实体映射
+            relations: 提取的关系列表
+            category: 内容分类
+            summary_result: 摘要结果
+            
+        Returns:
+            KnowledgeGraph: 构建的知识图谱
+        """
+        metadata = {
+            "content_length": len(content),
+            "extraction_timestamp": datetime.now().isoformat(),
+            "summary": summary_result.summary if summary_result else "",
+            "entities_count": len(entities),
+            "relations_count": len(relations)
+        }
+        
+        return KnowledgeGraph(
+            entities=list(entities.values()),
+            relations=relations,
+            category=category,
+            metadata=metadata
+        )
 
     async def _process_entities_with_vector_search(self, entities: List[Entity]) -> Dict[str, Entity]:
         """
@@ -464,14 +542,14 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
         Returns:
             查询结果
         """
-        # 确保store已初始化
-        await self._ensure_store_initialized()
-        
-        if not self.store:
-            raise RuntimeError("存储未初始化，请先调用initialize方法")
-        
         try:
-            logger.info(f"开始查询知识图谱: {query}")
+            # 确保store已初始化
+            await self._ensure_store_initialized()
+            
+            if not self._validate_store_initialized():
+                raise RuntimeError("存储未初始化，请先调用initialize方法")
+            
+            self._log_operation_start("查询知识图谱", 查询=query)
             
             # 1. 向量搜索查找相关实体
             search_results = await self.store.search_entities(
@@ -482,6 +560,7 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             )
             
             if not search_results:
+                self._log_operation_success("查询知识图谱", 结果="未找到相关知识")
                 return "未找到相关知识"
             
             # 2. 构建查询上下文
@@ -494,12 +573,11 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                 context=context
             )
             
-            logger.info("知识图谱查询完成")
+            self._log_operation_success("知识图谱查询")
             return response
             
         except Exception as e:
-            logger.error(f"查询知识图谱失败: {e}")
-            raise RuntimeError(f"查询知识图谱失败: {str(e)}")
+            self._handle_operation_error("查询知识图谱", e)
 
     @staticmethod
     def _build_query_context(search_results: List) -> str:

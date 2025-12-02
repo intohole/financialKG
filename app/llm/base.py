@@ -7,6 +7,9 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
 
+# 添加异步支持的导入
+import asyncio
+
 
 @dataclass
 class LLMResponse:
@@ -74,5 +77,32 @@ class BaseLLMService(ABC):
         
         Args:
             **kwargs: 要更新的配置项
+        """
+        pass
+    
+    # 以下是异步方法声明
+    @abstractmethod
+    async def generate_async(self, prompt: str, **kwargs) -> LLMResponse:
+        """异步生成文本响应
+        
+        Args:
+            prompt: 提示文本
+            **kwargs: 额外参数
+            
+        Returns:
+            LLMResponse: 包含生成内容和元数据的响应对象
+        """
+        pass
+    
+    @abstractmethod
+    async def generate_batch_async(self, prompts: list, **kwargs) -> list[LLMResponse]:
+        """异步批量生成文本响应
+        
+        Args:
+            prompts: 提示文本列表
+            **kwargs: 额外参数
+            
+        Returns:
+            list[LLMResponse]: 响应对象列表
         """
         pass

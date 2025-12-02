@@ -296,20 +296,20 @@ class NewsSearchService:
             )
             
             # 转换为前端友好的格式
-            return [
-                {
-                    "id": news.id,
-                    "title": news.title,
-                    "content": news.content,
-                    "summary": news.summary,
-                    "url": news.url,
-                    "source": news.source,
-                    "published_at": news.publish_time.isoformat() if news.publish_time else None,
-                    "sentiment": news.sentiment,
-                    "category": news.category
-                }
-                for news in recent_news
-            ]
+        return [
+            {
+                "id": getattr(news, 'id', None),
+                "title": getattr(news, 'title', None),
+                "content": getattr(news, 'content', None),
+                "summary": getattr(news, 'summary', None),
+                "url": getattr(news, 'url', None),
+                "source": getattr(news, 'source', None),
+                "published_at": getattr(news, 'publish_time', None).isoformat() if getattr(news, 'publish_time', None) else None,
+                "sentiment": getattr(news, 'sentiment', None),
+                "category": getattr(news, 'category', None)
+            }
+            for news in recent_news
+        ]
             
         except Exception as e:
             logger.error(f"获取最近新闻失败: {e}")

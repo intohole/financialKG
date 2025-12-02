@@ -9,11 +9,9 @@ from dataclasses import dataclass
 
 from app.llm.llm_client import LLMClient
 from app.llm.base import LLMResponse
-from app.llm.exceptions import (
+from app.exceptions import (
     GenerationError,
-    ConfigurationError,
-    PromptError,
-    ServiceUnavailableError
+    ConfigurationError
 )
 from app.config.config_manager import ConfigManager, LLMConfig
 
@@ -301,3 +299,91 @@ class TestLLMClient:
         
         # 注意：这里应该验证自定义参数是否被使用，但由于我们使用的是mock，
         # 我们只需要确保函数接受了这些参数而没有报错
+    
+    @pytest.mark.asyncio
+    async def test_generate_async(self, llm_client, mock_chat_openai):
+        """测试异步生成文本"""
+        # 设置mock返回值
+        mock_response = mock.MagicMock()
+        mock_response.content = "This is an async test response"
+        mock_chat_openai.return_value.ainvoke.return_value = mock_response
+        
+        # 调用generate_async
+        result = await llm_client.generate_async("Hello, async world!")
+        
+        # 验证结果
+        assert isinstance(result, LLMResponse)
+        assert result.content == "This is an async test response"
+        
+        # 验证调用
+        mock_chat_openai.return_value.ainvoke.assert_called_once()
+    
+    @pytest.mark.asyncio
+    async def test_generate_batch_async(self, llm_client, mock_chat_openai):
+        """测试异步批量生成"""
+        # 设置mock返回值
+        mock_responses = [
+            mock.MagicMock(content=f"Async Response {i}")
+            for i in range(3)
+        ]
+        mock_chat_openai.return_value.ainvoke.side_effect = mock_responses
+        
+        # 调用generate_batch_async
+        prompts = ["Async Prompt 1", "Async Prompt 2", "Async Prompt 3"]
+        results = await llm_client.generate_batch_async(prompts)
+        
+        # 验证结果
+        assert len(results) == 3
+        for i, result in enumerate(results):
+            assert isinstance(result, LLMResponse)
+            assert result.content == f"Async Response {i}"
+    
+    @pytest.mark.asyncio
+    async def test_astream(self, llm_client, mock_chat_openai):
+        """测试异步流式生成"""
+        # 设置mock返回值
+        mock_chunks = [
+            mock.MagicMock(content="Chunk 1"),
+            mock.MagicMock(content="Chunk 2"),
+            mock.MagicMock(content="Chunk 3")
+        ]
+        
+        # 创建异步生成器mock
+        async def mock_astream(*args, **kwargs):
+            for chunk in mock_chunks:
+                yield chunk
+        
+        mock_chat_openai.return_value.astream = mock_astream
+        
+        # 调用astream并收集结果
+        chunks = []
+        async for chunk in llm_client.astream("Stream test"):
+            chunks.append(chunk)
+        
+        # 验证结果
+        assert len(chunks) == 3
+        assert chunks == ["Chunk 1", "Chunk 2", "Chunk 3"]
+    
+    @pytest.mark.asyncio
+    async def test_generate_from_template_async(self, llm_client, mock_chat_openai, mock_prompt_manager):
+        """测试异步使用提示词模板生成"""
+        # 设置mock返回值
+        mock_response = mock.MagicMock(content="Async template response")
+        mock_chat_openai.return_value.ainvoke.return_value = mock_response
+        
+        # 调用generate_from_template_async
+        result = await llm_client.generate_from_template_async(
+            "test_template",
+            variable1="value1",
+            variable2="value2"
+        )
+        
+        # 验证提示词格式化
+        mock_prompt_manager.format_prompt.assert_called_once_with(
+            "test_template",
+            variable1="value1",
+            variable2="value2"
+        )
+        
+        # 验证结果
+        assert result.content == "Async template response"

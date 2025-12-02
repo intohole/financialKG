@@ -5,7 +5,7 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Optional
+from typing import Optional, Any, AsyncGenerator
 import asyncio
 from contextlib import asynccontextmanager
 
@@ -25,7 +25,7 @@ _service_lock = asyncio.Lock()
 
 
 @asynccontextmanager
-async def get_kg_core_service() -> KGCoreImplService:
+async def get_kg_core_service() -> AsyncGenerator[KGCoreImplService, Any]:
     """
     获取KGCoreImplService实例 - 使用单例模式和上下文管理
     
@@ -77,58 +77,74 @@ class ProcessContentRequest(BaseModel):
             raise ValueError("内容必须包含有效的文本字符")
 
 
-@router.post("/process-content", summary="处理内容并构建知识图谱")
+@router.post("/process-content", summary="提交内容处理任务")
 async def process_content(
-    request: ProcessContentRequest
+        request: ProcessContentRequest
 ):
     """
-    处理文本内容并构建知识图谱
-    
+    提交内容处理任务并立即返回
+
     Args:
         content: 要处理的文本内容
         content_id: 内容ID（可选）
-        
+
     Returns:
-        dict: 包含任务状态和消息的响应
-        
-    Raises:
-        HTTPException: 当参数无效时
+        dict: 包含任务ID和提交状态的响应
     """
     try:
         # 1. 参数验证
         request.validate_content()
-        
-        logger.info(f"开始处理内容，长度: {len(request.content)}, content_id: {request.content_id}")
-        
-        # 2. 使用上下文管理器获取服务实例
+
+        logger.info(f"提交内容处理任务，长度: {len(request.content)}, content_id: {request.content_id}")
+
+        # 2. 生成任务ID
+        import uuid
+        task_id = str(uuid.uuid4())
+
+        # 3. 异步启动处理任务（不等待完成）
         async with get_kg_core_service() as kg_core_service:
-            # 3. 调用核心服务处理内容
-            knowledge_graph = await kg_core_service.process_content(request.content)
-            
-            # 4. 返回结果
-            return {
-                "status": "success",
-                "message": "内容处理完成",
-                "data": knowledge_graph
-            }
-        
+            # 在后台启动任务
+            asyncio.create_task(_background_process_content(
+                kg_core_service,
+                request.content,
+                task_id,
+                request.content_id
+            ))
+
+        # 4. 立即返回任务ID
+        return {
+            "status": "submitted",
+            "message": "内容处理任务已提交",
+            "task_id": task_id
+        }
+
     except ValueError as e:
         logger.warning(f"内容验证失败: {e}")
         raise HTTPException(status_code=400, detail=f"内容验证失败: {str(e)}")
-    except asyncio.TimeoutError:
-        logger.error(f"内容处理超时")
-        return {
-            "status": "error",
-            "message": "内容处理超时",
-            "data": None
-        }
     except Exception as e:
-        logger.error(f"处理内容失败，错误: {e}")
-        return {
-            "status": "error",
-            "message": f"处理内容失败: {str(e)}",
-            "data": None
-        }
+        logger.error(f"提交处理任务失败，错误: {e}")
+        raise HTTPException(status_code=500, detail=f"提交任务失败: {str(e)}")
+
+
+async def _background_process_content(kg_service, content, task_id, content_id=None):
+    """
+    后台处理内容的异步任务
+
+    Args:
+        kg_service: 知识图谱核心服务实例
+        content: 要处理的内容
+        task_id: 任务ID
+        content_id: 内容ID
+    """
+    try:
+        logger.info(f"开始后台处理任务 {task_id}")
+        knowledge_graph = await kg_service.process_content(content)
+        logger.info(f"任务 {task_id} 处理完成 {knowledge_graph}")
+
+
+    except Exception as e:
+        logger.error(f"后台任务 {task_id} 处理失败: {e}")
+
 
 
 def register_routes(app):

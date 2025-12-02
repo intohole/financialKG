@@ -16,6 +16,7 @@
 """
 from typing import List, Optional, Dict
 
+from app.config.config_manager import CategoryConfigItem
 from app.core.base_service import BaseService
 from app.core.extract_models import (
     ContentClassification,
@@ -60,7 +61,8 @@ class ContentProcessor(BaseService):
     
     async def classify_content(self, text: str,
                              categories: Optional[List[str]] = None,
-                             category_config: Optional[Dict[str, Dict]] = None,
+                             categories_prompt :str =None,
+                             category_config: Optional[CategoryConfigItem] = None,
                              prompt_key: Optional[str] = None) -> ContentClassificationResult:
         """
         对文本内容进行分类，判断其所属类别
@@ -68,6 +70,7 @@ class ContentProcessor(BaseService):
         Args:
             text: 待分类的文本内容
             categories: 可选的类别列表，如不提供则使用默认类别
+            categories_prompt:
             category_config: 可选的类别配置字典，包含名称、描述、实体类型、关系类型
             prompt_key: 使用的prompt键名，默认为'content_classification'，可自定义
             
@@ -85,9 +88,7 @@ class ContentProcessor(BaseService):
         try:
             logger.info(f"开始内容分类，文本长度: {len(text)}")
             
-            # 自动选择提示词：如果提供了自定义类别或配置，使用 content_classification_enhanced，否则使用默认的 content_classification
             if prompt_key is None:
-                # 如果有自定义类别或配置，使用增强版分类
                 if categories or category_config:
                     prompt_key = 'content_classification_enhanced'
                 else:
@@ -98,6 +99,7 @@ class ContentProcessor(BaseService):
                 text=text,
                 prompt_key=prompt_key,
                 categories=categories,
+                categories_prompt=categories_prompt,
                 category_config=category_config
             )
             
@@ -116,7 +118,6 @@ class ContentProcessor(BaseService):
                                            entity_types: Optional[List[str]] = None,
                                            relation_types: Optional[List[str]] = None,
                                            prompt_key: Optional[str] = None,
-                                           category_config: Optional[Dict[str, Dict]] = None,
                                            current_category: str = 'financial') -> KnowledgeExtractionResult:
         """
         从文本中提取实体及其相互关系 - 统一版本
@@ -149,17 +150,14 @@ class ContentProcessor(BaseService):
             
             # 记录参数构建的详细信息，便于问题排查
             logger.info(f"实体关系提取参数 - prompt_key: {prompt_key}, "
-                       f"entity_types: {entity_types}, relation_types: {relation_types}, "
-                       f"category_config: {bool(category_config)}, current_category: {current_category}")
+                       f"entity_types: {entity_types}, relation_types: {relation_types}, ","current_category: {current_category}")
             
             # 使用参数构建器构建提示词参数
             prompt_params = self.parameter_builder.build_parameters(
                 text=text,
                 prompt_key=prompt_key,
                 entity_types=entity_types,
-                relation_types=relation_types,
-                category_config=category_config,
-                current_category=current_category
+                relation_types=relation_types
             )
             
             logger.info(f"构建的提示词参数 - entity_types: {prompt_params.get('entity_types', 'N/A')}, "

@@ -302,15 +302,15 @@ async def search_news(
             news_event = item["news_event"]
             formatted_results.append({
                 "news_event": {
-                    "id": news_event.id,
-                    "title": news_event.title,
-                    "content": news_event.content,
-                    "summary": news_event.summary,
-                    "url": news_event.url,
-                    "source": news_event.source,
-                    "published_at": news_event.publish_time.isoformat() if news_event.publish_time else None,
-                    "sentiment": news_event.sentiment,
-                    "category": news_event.category
+                    "id": getattr(news_event, 'id', None),
+                    "title": getattr(news_event, 'title', None),
+                    "content": getattr(news_event, 'content', None),
+                    "summary": getattr(news_event, 'summary', None),
+                    "url": getattr(news_event, 'url', None),
+                    "source": getattr(news_event, 'source', None),
+                    "published_at": getattr(news_event, 'publish_time', None).isoformat() if getattr(news_event, 'publish_time', None) else None,
+                    "sentiment": getattr(news_event, 'sentiment', None),
+                    "category": getattr(news_event, 'category', None)
                 },
                 "score": item["score"],
                 "metadata": item["metadata"]

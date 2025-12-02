@@ -4,7 +4,9 @@
 """
 
 import time
+import asyncio
 from contextlib import contextmanager
+from pyexpat.errors import messages
 from typing import Any, Dict, Optional, List
 
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -23,16 +25,16 @@ logger = get_logger(__name__)
 
 class LLMClient(BaseLLMService):
     """基于LangChain的大模型客户端
-    
+
     提供与大模型服务的交互功能，支持配置管理、响应生成、批处理等功能
     """
-    
-    def __init__(self, 
+
+    def __init__(self,
                  config_manager: Optional[ConfigManager] = None,
                  prompt_manager: Optional[PromptManager] = None,
                  **kwargs):
         """初始化大模型客户端
-        
+
         Args:
             config_manager: 配置管理器实例
             prompt_manager: 提示词管理器实例
@@ -43,44 +45,44 @@ class LLMClient(BaseLLMService):
         self._llm_config = None
         self._llm_instance = None
         self._custom_config = kwargs
-        
+
         # 初始化配置和LLM实例
         self._initialize()
-        
+
         # 添加配置变更监听
         self._config_manager.add_change_callback(self._on_config_change)
-    
+
     def _initialize(self) -> None:
         """初始化客户端
-        
+
         加载配置并创建LLM实例
         """
         try:
             # 获取配置
             self._llm_config = self._get_merged_config()
-            
+
             # 验证配置
             if not self.validate_config():
                 raise ConfigurationError("无效的LLM配置")
-            
+
             # 创建LLM实例
             self._create_llm_instance()
-            
+
             logger.info(f"大模型客户端初始化成功，模型: {self._llm_config.model}")
         except Exception as e:
             logger.error(f"大模型客户端初始化失败: {e}")
             raise
-    
+
     def _get_merged_config(self) -> LLMConfig:
         """获取合并后的配置
-        
+
         合并配置管理器中的配置和自定义配置
-        
+
         Returns:
             LLMConfig: 合并后的配置对象
         """
         base_config = self._config_manager.get_llm_config()
-        
+
         # 创建配置字典
         config_dict = {
             'model': base_config.model,
@@ -91,12 +93,12 @@ class LLMClient(BaseLLMService):
             'temperature': base_config.temperature,
             'max_tokens': base_config.max_tokens
         }
-        
+
         # 使用自定义配置覆盖
         config_dict.update(self._custom_config)
-        
+
         return LLMConfig(**config_dict)
-    
+
     def _create_llm_instance(self) -> None:
         """创建LangChain LLM实例
 
@@ -123,10 +125,10 @@ class LLMClient(BaseLLMService):
         except Exception as e:
             logger.error(f"创建LLM实例失败: {e}")
             raise ConfigurationError(f"创建LLM实例失败: {e}")
-    
+
     def _on_config_change(self) -> None:
         """配置变更回调
-        
+
         当配置文件变更时重新初始化客户端
         """
         logger.info("检测到配置变更，重新初始化大模型客户端")
@@ -134,7 +136,7 @@ class LLMClient(BaseLLMService):
             self._initialize()
         except Exception as e:
             logger.error(f"配置变更后重新初始化失败: {e}")
-    
+
     def validate_config(self) -> bool:
         """验证配置是否有效
 
@@ -166,14 +168,14 @@ class LLMClient(BaseLLMService):
             return False
 
         return True
-    
+
     def _extract_token_usage(self, response: Any, messages: List[SystemMessage | HumanMessage]) -> Dict[str, int]:
         """提取token使用信息
-        
+
         Args:
             response: LLM响应对象
             messages: 消息列表
-            
+
         Returns:
             Dict[str, int]: token使用统计
         """
@@ -185,7 +187,7 @@ class LLMClient(BaseLLMService):
                 'completion': usage.get('completion_tokens', 0),
                 'total': usage.get('total_tokens', 0)
             }
-        
+
         # 尝试从response_metadata中获取
         if hasattr(response, 'response_metadata') and response.response_metadata:
             token_usage = response.response_metadata.get('token_usage', {})
@@ -195,7 +197,7 @@ class LLMClient(BaseLLMService):
                     'completion': token_usage.get('completion_tokens', 0),
                     'total': token_usage.get('total_tokens', 0)
                 }
-        
+
         # 尝试从metadata中获取
         if hasattr(response, 'metadata') and response.metadata:
             token_usage = response.metadata.get('token_usage', {})
@@ -205,17 +207,17 @@ class LLMClient(BaseLLMService):
                     'completion': token_usage.get('completion_tokens', 0),
                     'total': token_usage.get('total_tokens', 0)
                 }
-        
+
         # 如果没有token信息，使用估算方法
         return self._estimate_token_usage(messages, response.content)
-    
+
     def _estimate_token_usage(self, messages: List[SystemMessage | HumanMessage], content: str) -> Dict[str, int]:
         """估算token使用量
-        
+
         Args:
             messages: 消息列表
             content: 响应内容
-            
+
         Returns:
             Dict[str, int]: token使用估算
         """
@@ -239,40 +241,40 @@ class LLMClient(BaseLLMService):
                 'completion': len(content) // 4,
                 'total': (len(prompt_text) + len(content)) // 4
             }
-    
+
     def _get_retry_delay(self, error: Exception, attempt: int) -> Optional[float]:
         """获取重试延迟时间
-        
+
         Args:
             error: 异常对象
             attempt: 当前尝试次数
-            
+
         Returns:
             Optional[float]: 延迟时间（秒），如果为None则表示不可重试
         """
         error_msg = str(error).lower()
-        
+
         # 认证错误，不可重试
         if any(keyword in error_msg for keyword in ['authentication', 'invalid api key']):
             raise AuthenticationError(f"认证失败: {error}")
-        
+
         # 速率限制错误，指数退避
         if any(keyword in error_msg for keyword in ['rate limit', 'too many requests']):
             return attempt * 2  # 指数退避
-        
+
         # 服务不可用，线性退避
         if any(keyword in error_msg for keyword in ['service unavailable', 'server error']):
             return attempt  # 线性退避
-        
+
         # 其他错误，固定延迟
         return 1.0
-    
+
     def _handle_generation_error(self, error: Exception) -> None:
         """处理生成错误
-        
+
         Args:
             error: 异常对象
-            
+
         Raises:
             GenerationError: 如果是输出解析错误
         """
@@ -284,20 +286,20 @@ class LLMClient(BaseLLMService):
             # 如果无法导入OutputParserException，使用字符串匹配
             if 'OutputParserException' in str(type(error)):
                 raise GenerationError(f"输出解析失败: {error}", model=self._llm_config.model)
-    
+
     def _calculate_cost(self, prompt_tokens: int, completion_tokens: int) -> float:
         """计算API调用成本
-        
+
         Args:
             prompt_tokens: 输入token数量
             completion_tokens: 输出token数量
-            
+
         Returns:
             float: 估算的成本（美元）
         """
         model = self._llm_config.model or ""
         model_lower = model.lower()
-        
+
         # 基于常见的OpenAI定价，需要根据实际模型调整
         if 'gpt-4' in model_lower:
             return (prompt_tokens * 0.03 + completion_tokens * 0.06) / 1000
@@ -309,10 +311,10 @@ class LLMClient(BaseLLMService):
         else:
             # 默认使用GPT-3.5的定价
             return (prompt_tokens * 0.0015 + completion_tokens * 0.002) / 1000
-    
-    def generate(self, prompt: str, **kwargs) -> LLMResponse:
+
+    def generate(self, prompt: str, **kwargs) -> LLMResponse | None:
         """生成文本响应
-        
+
         Args:
             prompt: 提示文本
             **kwargs: 额外参数，包括：
@@ -320,79 +322,39 @@ class LLMClient(BaseLLMService):
                 - temperature: 温度参数（覆盖默认配置）
                 - max_tokens: 最大令牌数（覆盖默认配置）
                 - model: 模型名称（覆盖默认配置）
-            
+
         Returns:
             LLMResponse: 包含生成内容和元数据的响应对象
         """
         start_time = time.time()
         attempt = 0
         max_retries = kwargs.get('max_retries', self._llm_config.max_retries)
-        
+
         while attempt <= max_retries:
             attempt += 1
-            
+
             try:
                 # 构建消息列表
-                messages = []
-                
-                # 添加系统提示词（如果提供）
-                system_prompt = kwargs.get('system_prompt')
-                if system_prompt:
-                    messages.append(SystemMessage(content=system_prompt))
-                
-                # 添加用户提示词
-                messages.append(HumanMessage(content=prompt))
-                
-                # 准备调用参数
-                call_kwargs = {}
-                if 'temperature' in kwargs:
-                    call_kwargs['temperature'] = kwargs['temperature']
-                if 'max_tokens' in kwargs:
-                    call_kwargs['max_tokens'] = kwargs['max_tokens']
-                if 'model' in kwargs:
-                    call_kwargs['model'] = kwargs['model']
-                
+                messages, call_kwargs = self._build_llm_messages(prompt, **kwargs)
+
                 # 生成响应
                 response = self._llm_instance.invoke(messages, **call_kwargs)
-                
+
                 # 计算延迟
                 latency = time.time() - start_time
-                
-                # 提取token使用信息
-                token_usage = self._extract_token_usage(response, messages)
-                prompt_tokens = token_usage['prompt']
-                completion_tokens = token_usage['completion']
-                total_tokens = token_usage['total']
-                
-                # 计算成本
-                cost = self._calculate_cost(prompt_tokens, completion_tokens)
-                
+
                 # 构建响应对象
-                llm_response = LLMResponse(
-                    content=response.content,
-                    metadata={
-                        'model': self._llm_config.model,
-                        'attempt': attempt,
-                        'timestamp': time.time()
-                    },
-                    cost=cost,
-                    latency=latency,
-                    tokens_used={
-                        'prompt': prompt_tokens,
-                        'completion': completion_tokens,
-                        'total': total_tokens
-                    }
-                )
-                
+                llm_response = self._build_response(response,messages,attempt=attempt,latency=latency)
+
                 logger.info(f"生成成功，模型: {self._llm_config.model}, 尝试次数: {attempt}, 延迟: {latency:.2f}s")
                 return llm_response
-                    
+
             except Exception as e:
                 logger.error(f"生成失败 (尝试 {attempt}/{max_retries}): {e}")
-                
+
                 # 根据错误类型处理
                 self._handle_generation_error(e)
-                
+
                 # 检查是否需要重试
                 retry_delay = self._get_retry_delay(e, attempt)
                 if retry_delay is not None:
@@ -406,28 +368,115 @@ class LLMClient(BaseLLMService):
                     logger.warning(f"请求失败，{retry_delay}秒后重试 (尝试 {attempt}/{max_retries})")
                     time.sleep(retry_delay)
                     continue
-                
+
+                # 不可重试的错误，直接抛出
+                raise
+
+    def _build_response(self,response,messages:List[Any],attempt:int,latency:float) -> LLMResponse:
+        token_usage = self._extract_token_usage(response, messages)
+        prompt_tokens = token_usage['prompt']
+        completion_tokens = token_usage['completion']
+        total_tokens = token_usage['total']
+
+        # 计算成本
+        cost = self._calculate_cost(prompt_tokens, completion_tokens)
+
+        return LLMResponse(
+            content=response.content,
+            metadata={
+                'model': self._llm_config.model,
+                'attempt': attempt,
+                'timestamp': time.time()
+            },
+            cost=cost,
+            latency=latency,
+            tokens_used={
+                'prompt': prompt_tokens,
+                'completion': completion_tokens,
+                'total': total_tokens
+            }
+        )
+
+    async def generate_async(self, prompt: str, **kwargs) -> LLMResponse:
+        """异步生成文本响应
+
+        Args:
+            prompt: 提示文本
+            **kwargs: 额外参数，包括：
+                - system_prompt: 系统提示词
+                - temperature: 温度参数（覆盖默认配置）
+                - max_tokens: 最大令牌数（覆盖默认配置）
+                - model: 模型名称（覆盖默认配置）
+
+        Returns:
+            LLMResponse: 包含生成内容和元数据的响应对象
+        """
+        start_time = time.time()
+        attempt = 0
+        max_retries = kwargs.get('max_retries', self._llm_config.max_retries)
+
+        while attempt <= max_retries:
+            attempt += 1
+
+            try:
+                # 构建消息列表
+                messages, call_kwargs = self._build_llm_messages(prompt, **kwargs)
+
+                # 异步生成响应
+                response = await self._llm_instance.ainvoke(messages, **call_kwargs)
+
+                # 计算延迟
+                latency = time.time() - start_time
+
+                llm_response = self._build_response(response,messages,attempt=attempt,latency=latency)
+
+
+                logger.info(f"异步生成成功，模型: {self._llm_config.model}, 尝试次数: {attempt}, 延迟: {latency:.2f}s")
+                return llm_response
+
+            except Exception as e:
+                logger.error(f"异步生成失败 (尝试 {attempt}/{max_retries}): {e}")
+
+                # 根据错误类型处理
+                self._handle_generation_error(e)
+
+                # 检查是否需要重试
+                retry_delay = self._get_retry_delay(e, attempt)
+                if retry_delay is not None:
+                    if attempt >= max_retries:
+                        # 达到最大重试次数
+                        raise GenerationError(
+                            f"异步生成失败，已达最大重试次数: {max_retries}",
+                            model=self._llm_config.model,
+                            attempt=attempt
+                        )
+                    logger.warning(f"异步请求失败，{retry_delay}秒后重试 (尝试 {attempt}/{max_retries})")
+                    await asyncio.sleep(retry_delay)
+                    continue
+
                 # 不可重试的错误，直接抛出
                 raise
 
 
+        # 提取token使用信息
+
     def generate_batch(self, prompts: list, **kwargs) -> list[LLMResponse]:
         """批量生成文本响应
-        
+
         Args:
             prompts: 提示文本列表
             **kwargs: 额外参数（同generate方法）
-            
+
         Returns:
             list[LLMResponse]: 响应对象列表
         """
         if not prompts:
             logger.warning("批量请求列表为空")
             return []
-        
+
         results = []
         total_count = len(prompts)
-        
+
         # 可以根据需要实现真正的并行批处理
         # 目前使用串行处理以简化错误处理
         for i, prompt in enumerate(prompts, 1):
@@ -447,41 +496,166 @@ class LLMClient(BaseLLMService):
                     }
                 )
                 results.append(error_response)
-        
+
         return results
-    
+
+    async def generate_batch_async(self, prompts: list, **kwargs) -> list[LLMResponse]:
+        """异步批量生成文本响应
+
+        Args:
+            prompts: 提示文本列表
+            **kwargs: 额外参数（同generate方法）
+
+        Returns:
+            list[LLMResponse]: 响应对象列表
+        """
+        if not prompts:
+            logger.warning("异步批量请求列表为空")
+            return []
+
+        total_count = len(prompts)
+        logger.info(f"开始处理异步批量请求，共 {total_count} 个请求")
+
+        # 创建所有异步任务
+        async def async_generate_single(prompt, index):
+            """异步处理单个提示"""
+            try:
+                logger.debug(f"处理异步批量请求 {index+1}/{total_count}")
+                return await self.generate_async(prompt, **kwargs)
+            except Exception as e:
+                logger.error(f"异步批量请求 {index+1} 失败: {e}")
+                # 创建一个错误响应对象
+                return LLMResponse(
+                    content="",
+                    metadata={
+                        'error': str(e),
+                        'prompt_index': index,
+                        'success': False
+                    }
+                )
+
+        # 使用asyncio.gather并发执行所有任务
+        tasks = [async_generate_single(prompt, i) for i, prompt in enumerate(prompts)]
+        results = await asyncio.gather(*tasks)
+
+        logger.info(f"异步批量请求处理完成，共 {total_count} 个请求")
+        return results
+
     def generate_from_template(self, prompt_name: str, **kwargs) -> LLMResponse:
         """使用提示词模板生成响应
-        
+
         Args:
             prompt_name: 提示词模板名称
             **kwargs: 模板变量和生成参数
-            
+
         Returns:
             LLMResponse: 响应对象
         """
         # 预定义的生成参数
         generate_params = {'system_prompt', 'temperature', 'max_tokens', 'model', 'max_retries'}
-        
+
         # 分离生成参数和模板变量
         generate_kwargs = {k: v for k, v in kwargs.items() if k in generate_params}
         template_kwargs = {k: v for k, v in kwargs.items() if k not in generate_params}
-        
+
         # 格式化提示词
         prompt = self._prompt_manager.format_prompt(prompt_name, **template_kwargs)
-        
+
         # 生成响应
         return self.generate(prompt, **generate_kwargs)
-    
+
+    async def generate_from_template_async(self, prompt_name: str, **kwargs) -> LLMResponse:
+        """异步使用提示词模板生成响应
+
+        Args:
+            prompt_name: 提示词模板名称
+            **kwargs: 模板变量和生成参数
+
+        Returns:
+            LLMResponse: 响应对象
+        """
+        # 预定义的生成参数
+        generate_params = {'system_prompt', 'temperature', 'max_tokens', 'model', 'max_retries'}
+
+        # 分离生成参数和模板变量
+        generate_kwargs = {k: v for k, v in kwargs.items() if k in generate_params}
+        template_kwargs = {k: v for k, v in kwargs.items() if k not in generate_params}
+
+        # 格式化提示词
+        prompt = self._prompt_manager.format_prompt(prompt_name, **template_kwargs)
+
+        # 异步生成响应
+        return await self.generate_async(prompt, **generate_kwargs)
+
+    async def astream(self, prompt: str, **kwargs):
+        """异步流式处理生成文本响应
+
+        Args:
+            prompt: 提示文本
+            **kwargs: 额外参数，包括：
+                - system_prompt: 系统提示词
+                - temperature: 温度参数（覆盖默认配置）
+                - max_tokens: 最大令牌数（覆盖默认配置）
+                - model: 模型名称（覆盖默认配置）
+
+        Yields:
+            生成的文本块
+        """
+        attempt = 0
+        max_retries = kwargs.get('max_retries', self._llm_config.max_retries)
+
+        while attempt <= max_retries:
+            attempt += 1
+
+            try:
+                # 构建消息列表
+                messages,call_kwargs = self._build_llm_messages(prompt,**kwargs)
+
+                logger.info(f"开始异步流式生成，模型: {self._llm_config.model}, 尝试次数: {attempt}")
+
+                # 异步流式生成响应
+                async for chunk in self._llm_instance.astream(messages, **call_kwargs):
+                    # 逐块返回结果
+                    yield chunk.content
+
+                logger.info(f"异步流式生成完成，模型: {self._llm_config.model}, 尝试次数: {attempt}")
+                return
+
+            except Exception as e:
+                logger.error(f"异步流式生成失败 (尝试 {attempt}/{max_retries}): {e}")
+
+                # 根据错误类型处理
+                self._handle_generation_error(e)
+
+                # 检查是否需要重试
+                retry_delay = await self._execute_exception(attempt, e)
+                if retry_delay is not None:
+                    if attempt >= max_retries:
+                        # 达到最大重试次数
+                        raise GenerationError(
+                            f"异步流式生成失败，已达最大重试次数: {max_retries}",
+                            model=self._llm_config.model,
+                            attempt=attempt
+                        )
+                    logger.warning(f"异步流式请求失败，{retry_delay}秒后重试 (尝试 {attempt}/{max_retries})")
+                    await asyncio.sleep(retry_delay)
+                    continue
+
+                # 不可重试的错误，直接抛出
+                raise
+
+    async def _execute_exception(self, attempt: int, e: Exception) -> float | None:
+        return self._get_retry_delay(e, attempt)
+
     def get_config(self) -> Dict[str, Any]:
         """获取当前配置
-        
+
         Returns:
             Dict[str, Any]: 配置字典
         """
         if not self._llm_config:
             return {}
-        
+
         return {
             'model': self._llm_config.model,
             'base_url': self._llm_config.base_url,
@@ -492,39 +666,39 @@ class LLMClient(BaseLLMService):
             # 不返回API密钥
             **self._custom_config
         }
-    
+
     def update_config(self, **kwargs) -> None:
         """更新配置
-        
+
         Args:
             **kwargs: 要更新的配置项
         """
         # 更新自定义配置
         self._custom_config.update(kwargs)
-        
+
         # 重新初始化
         self._initialize()
-    
+
     def get_prompt_manager(self) -> PromptManager:
         """获取提示词管理器实例
-        
+
         Returns:
             PromptManager: 提示词管理器实例
         """
         return self._prompt_manager
-    
+
     def get_config_manager(self) -> ConfigManager:
         """获取配置管理器实例
-        
+
         Returns:
             ConfigManager: 配置管理器实例
         """
         return self._config_manager
-    
+
     @contextmanager
     def temporary_config(self, **kwargs):
         """临时使用指定配置
-        
+
         Args:
             **kwargs: 临时配置项
         """
@@ -535,10 +709,10 @@ class LLMClient(BaseLLMService):
         finally:
             self._custom_config = original_config
             self._initialize()
-    
+
     def __del__(self):
         """析构函数
-        
+
         清理资源
         """
         try:
@@ -546,3 +720,27 @@ class LLMClient(BaseLLMService):
                 self._config_manager.remove_change_callback(self._on_config_change)
         except Exception:
             pass
+
+    @staticmethod
+    def _build_llm_messages(prompt,**kwargs):
+        messages = []
+
+        # 添加系统提示词（如果提供）
+        system_prompt = kwargs.get('system_prompt')
+        if system_prompt:
+            messages.append(SystemMessage(content=system_prompt))
+
+        # 添加用户提示词
+        messages.append(HumanMessage(content=prompt))
+
+        # 准备调用参数
+        call_kwargs = {}
+        if 'temperature' in kwargs:
+            call_kwargs['temperature'] = kwargs['temperature']
+        if 'max_tokens' in kwargs:
+            call_kwargs['max_tokens'] = kwargs['max_tokens']
+        if 'model' in kwargs:
+            call_kwargs['model'] = kwargs['model']
+
+        return messages,call_kwargs
+

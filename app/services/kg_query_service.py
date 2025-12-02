@@ -456,15 +456,13 @@ class KGQueryService:
             items = []
             for news in news_list:
                 items.append({
-                    "id": news.id,
-                    "title": news.title,
-                    "content": news.content[:300] + "..." if len(news.content) > 300 else news.content,
-                    "summary": news.summary,
-                    "url": news.url,
-                    "source": news.source,
+                    "id": getattr(news, 'id', None),
+                    "title": getattr(news, 'title', None),
+                    "content": (getattr(news, 'content', '')[:300] + "..." if len(getattr(news, 'content', '')) > 300 else getattr(news, 'content', '')),
+                    "source": getattr(news, 'source', None),
                     "published_at": news.publish_time.isoformat() if news.publish_time else None,
-                    "sentiment": getattr(news, 'sentiment', None),
-                    "category": getattr(news, 'category', None)
+                    "created_at": news.created_at.isoformat() if news.created_at else None,
+                    "updated_at": news.updated_at.isoformat() if news.updated_at else None
                 })
             
             return {
@@ -543,15 +541,13 @@ class KGQueryService:
                 items = []
                 for news in news_list:
                     items.append({
-                        "id": news.id,
-                        "title": news.title,
-                        "content": news.content[:300] + "..." if len(news.content) > 300 else news.content,
-                        "summary": news.summary,
-                        "url": news.url,
-                        "source": news.source,
+                        "id": getattr(news, 'id', None),
+                        "title": getattr(news, 'title', None),
+                        "content": (getattr(news, 'content', '')[:300] + "..." if len(getattr(news, 'content', '')) > 300 else getattr(news, 'content', '')),
+                        "source": getattr(news, 'source', None),
                         "published_at": news.publish_time.isoformat() if news.publish_time else None,
-                        "sentiment": getattr(news, 'sentiment', None),
-                        "category": getattr(news, 'category', None)
+                        "created_at": news.created_at.isoformat() if news.created_at else None,
+                        "updated_at": news.updated_at.isoformat() if news.updated_at else None
                     })
                 
                 return {
@@ -776,17 +772,17 @@ class KGQueryService:
             items = []
             for news in news_list:
                 items.append({
-                    "id": news.id,
-                    "title": news.title,
-                    "content": news.content[:500] + "..." if len(news.content) > 500 else news.content,
-                    "summary": news.summary,
-                    "url": news.url,
-                    "source": news.source,
-                    "published_at": news.publish_time.isoformat() if news.publish_time else None,
+                    "id": getattr(news, 'id', None),
+                    "title": getattr(news, 'title', None),
+                    "content": (getattr(news, 'content', '')[:500] + "..." if len(getattr(news, 'content', '')) > 500 else getattr(news, 'content', '')),
+                    "summary": getattr(news, 'summary', None),
+                    "url": getattr(news, 'url', None),
+                    "source": getattr(news, 'source', None),
+                    "published_at": getattr(news, 'publish_time', None).isoformat() if getattr(news, 'publish_time', None) else None,
                     "sentiment": getattr(news, 'sentiment', None),
                     "category": getattr(news, 'category', None),
-                    "created_at": news.created_at.isoformat() if news.created_at else None,
-                    "updated_at": news.updated_at.isoformat() if news.updated_at else None
+                    "created_at": getattr(news, 'created_at', None).isoformat() if getattr(news, 'created_at', None) else None,
+                    "updated_at": getattr(news, 'updated_at', None).isoformat() if getattr(news, 'updated_at', None) else None
                 })
             
             return {

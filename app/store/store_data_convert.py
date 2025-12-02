@@ -4,8 +4,8 @@
 """
 
 from typing import Optional, Dict, Any
-from app.database.models import Entity as DBEntity, Relation as DBRelation
-from app.store.store_base_abstract import Entity, Relation
+from app.database.models import Entity as DBEntity, Relation as DBRelation, NewsEvent as DBNewsEvent
+from app.store.store_base_abstract import Entity, Relation, NewsEvent
 
 
 class DataConverter:
@@ -91,5 +91,44 @@ class DataConverter:
         # 如果metadata存在且不为None，添加到结果中
         if hasattr(relation, 'metadata') and relation.metadata is not None:
             result['meta_data'] = relation.metadata
+            
+        return result
+    
+    @staticmethod
+    def db_news_event_to_news_event(db_news_event: DBNewsEvent, vector_id: Optional[str] = None) -> NewsEvent:
+        """数据库新闻事件转换为业务新闻事件"""
+        if db_news_event is None:
+            raise ValueError("数据库新闻事件不能为None")
+        
+        try:
+            return NewsEvent(
+                id=db_news_event.id,
+                title=db_news_event.title,
+                content=db_news_event.content,
+                source=db_news_event.source,
+                publish_time=db_news_event.publish_time,
+                created_at=db_news_event.created_at,
+                updated_at=db_news_event.updated_at,
+                vector_id=vector_id
+            )
+        except AttributeError as e:
+            raise ValueError(f"数据库新闻事件缺少必要属性: {e}")
+    
+    @staticmethod
+    def news_event_to_db_news_event(news_event: NewsEvent) -> Dict[str, Any]:
+        """业务新闻事件转换为数据库新闻事件数据字典"""
+        if news_event is None:
+            raise ValueError("业务新闻事件不能为None")
+        
+        result = {
+            'title': news_event.title,
+            'content': news_event.content,
+            'source': news_event.source,
+            'publish_time': news_event.publish_time
+        }
+        
+        # 如果vector_id存在且不为None，添加到结果中
+        if hasattr(news_event, 'vector_id') and news_event.vector_id is not None:
+            result['vector_id'] = news_event.vector_id
             
         return result

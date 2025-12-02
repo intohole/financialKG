@@ -3,7 +3,7 @@
 
 # 大模型配置
 llm:
-  model: "glm-4.5-air"
+  model: "glm-4-flash"
   api_key: "9f0867c6ca528cfb0faa3ea170411448.YpruqxYPsTnpyrjM"  # 通过环境变量 OPENAI_API_KEY 设置
   base_url: "https://open.bigmodel.cn/api/paas/v4/"  # 可选，通过环境变量 OPENAI_BASE_URL 设置
   timeout: 360  # 超时时间设置为120秒
@@ -172,13 +172,7 @@ knowledge_graph:
   
   # 默认类别（当无法确定类别时使用）
   default_category: "financial"
-  
-  # 内容分类配置
-  classification:
-    enabled: true
-    confidence_threshold: 0.7
-    supported_categories: ["financial", "technology", "medical", "education"]
-  
+
   # 实体相似度配置
   similarity_threshold: 0.7
   max_entities_per_news: 50

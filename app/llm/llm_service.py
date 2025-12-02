@@ -36,28 +36,29 @@ class LLMService:
     
     def __init__(self, 
                  config_manager: Optional[ConfigManager] = None,
-                 max_workers: int = 5):
+                 max_workers: int = 5,
+                 executor: Optional[ThreadPoolExecutor] = None):
         """初始化大模型服务
         
         Args:
             config_manager: 配置管理器实例
             max_workers: 线程池最大工作线程数
+            executor: 自定义线程池执行器（可选）
         """
         # 避免重复初始化
         if hasattr(self, '_initialized') and self._initialized:
             return
         
         self._client = LLMClient(config_manager=config_manager)
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        # 使用自定义执行器或创建新的
+        self._executor = executor if executor else ThreadPoolExecutor(max_workers=max_workers)
         self._initialized = True
+        self._call_history = []  # 用于统计和历史记录
         
         logger.info("大模型服务初始化完成")
     
-    def generate(self, 
-                 prompt: str,
-                 system_prompt: Optional[str] = None,
-                 **kwargs) -> LLMResponse:
-        """生成文本响应
+    def generate(self, prompt: str, system_prompt: Optional[str] = None, **kwargs) -> LLMResponse:
+        """生成响应（符合基类接口）
         
         Args:
             prompt: 用户提示词
@@ -67,18 +68,9 @@ class LLMService:
         Returns:
             LLMResponse: 响应对象
         """
-        try:
-            logger.info(f"开始生成响应，模型: {self._client.get_config().get('model')}")
-            response = self._client.generate(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                **kwargs
-            )
-            logger.info(f"生成响应成功，令牌使用: {response.tokens_used}")
-            return response
-        except Exception as e:
-            logger.error(f"生成响应失败: {e}")
-            raise
+        # 直接调用客户端的generate方法
+        response = self._client.generate(prompt, **kwargs)
+        return response
     
     def generate_from_template(self, 
                               template_name: str,
@@ -107,11 +99,8 @@ class LLMService:
             logger.error(f"模板生成失败: {e}")
             raise
     
-    def generate_batch(self, 
-                      prompts: List[str],
-                      system_prompt: Optional[str] = None,
-                      **kwargs) -> List[LLMResponse]:
-        """批量生成响应
+    def generate_batch(self, prompts: List[str], system_prompt: Optional[str] = None, **kwargs) -> list[LLMResponse]:
+        """批量生成响应（符合基类接口）
         
         Args:
             prompts: 提示词列表
@@ -119,30 +108,59 @@ class LLMService:
             **kwargs: 其他参数
             
         Returns:
-            List[LLMResponse]: 响应对象列表
+            list[LLMResponse]: 响应对象列表
+        """
+        # 直接调用客户端的generate_batch方法
+        return self._client.generate_batch(prompts, **kwargs)
+    
+    async def generate_text(self, prompt: str, **kwargs) -> str:
+        """生成文本并返回纯文本内容
+        
+        Args:
+            prompt: 提示文本
+            **kwargs: 额外参数
+            
+        Returns:
+            str: 生成的文本内容
         """
         try:
-            logger.info(f"开始批量生成响应，数量: {len(prompts)}")
-            responses = self._client.generate_batch(
-                prompts=prompts,
-                system_prompt=system_prompt,
-                **kwargs
-            )
-            
-            # 统计成功和失败的数量
-            success_count = sum(1 for r in responses if r.metadata.get('success') is not False)
-            logger.info(f"批量生成完成，成功: {success_count}, 失败: {len(responses) - success_count}")
-            
-            return responses
+            response = await self._client.generate_async(prompt, **kwargs)
+            self._update_call_history(prompt, response, **kwargs)
+            return response.content
         except Exception as e:
-            logger.error(f"批量生成失败: {e}")
+            logger.error(f"生成文本失败: {e}")
+            self._update_call_history(prompt, None, error=str(e), **kwargs)
             raise
     
-    async def async_generate(self, 
-                            prompt: str,
-                            system_prompt: Optional[str] = None,
-                            **kwargs) -> LLMResponse:
-        """异步生成响应
+    async def generate_text_with_template(self, template_name: str, **kwargs) -> str:
+        """使用提示词模板生成文本
+        
+        Args:
+            template_name: 模板名称
+            **kwargs: 模板参数
+            
+        Returns:
+            str: 生成的文本内容
+        """
+        try:
+            # 尝试从客户端获取prompt_manager
+            prompt_manager = self._client.get_prompt_manager()
+            if hasattr(prompt_manager, 'format_prompt'):
+                prompt = prompt_manager.format_prompt(template_name, **kwargs)
+            else:
+                # 回退方案
+                raise Exception(f"PromptManager没有format_prompt方法")
+            
+            response = await self._client.generate_async(prompt, **kwargs)
+            self._update_call_history(prompt, response, template=template_name, **kwargs)
+            return response.content
+        except Exception as e:
+            logger.error(f"使用模板生成文本失败: {e}")
+            self._update_call_history(None, None, template=template_name, error=str(e), **kwargs)
+            raise
+    
+    async def generate_async(self, prompt: str, system_prompt: Optional[str] = None, **kwargs) -> LLMResponse:
+        """异步生成响应（符合基类接口）
         
         Args:
             prompt: 用户提示词
@@ -152,17 +170,12 @@ class LLMService:
         Returns:
             LLMResponse: 响应对象
         """
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            self._executor,
-            lambda: self.generate(prompt, system_prompt, **kwargs)
-        )
+        # 直接调用客户端的generate_async方法
+        response = await self._client.generate_async(prompt, **kwargs)
+        return response
     
-    async def async_generate_batch(self, 
-                                  prompts: List[str],
-                                  system_prompt: Optional[str] = None,
-                                  **kwargs) -> List[LLMResponse]:
-        """异步批量生成响应
+    async def generate_batch_async(self, prompts: List[str], system_prompt: Optional[str] = None, **kwargs) -> list[LLMResponse]:
+        """异步批量生成响应（符合基类接口）
         
         Args:
             prompts: 提示词列表
@@ -170,18 +183,40 @@ class LLMService:
             **kwargs: 其他参数
             
         Returns:
-            List[LLMResponse]: 响应对象列表
+            list[LLMResponse]: 响应对象列表
         """
-        # 创建任务列表
-        tasks = []
-        for prompt in prompts:
-            task = self.async_generate(prompt, system_prompt, **kwargs)
-            tasks.append(task)
-        
-        # 等待所有任务完成
-        return await asyncio.gather(*tasks, return_exceptions=True)
+        # 直接调用客户端的generate_batch_async方法
+        responses = await self._client.generate_batch_async(prompts, **kwargs)
+        return responses
     
-    def validate_template(self, template_name: str, **kwargs) -> bool:
+    # 保持向后兼容的异步方法
+    async def generate_text_async(self, prompt: str, **kwargs) -> str:
+        """异步生成文本内容（向后兼容测试）
+        
+        Args:
+            prompt: 用户提示词
+            **kwargs: 其他参数
+            
+        Returns:
+            str: 生成的文本内容
+        """
+        response = await self.generate_async(prompt, **kwargs)
+        return response.content
+    
+    async def generate_batch_text_async(self, prompts: List[str], **kwargs) -> List[str]:
+        """异步批量生成文本内容
+        
+        Args:
+            prompts: 提示词列表
+            **kwargs: 其他参数
+            
+        Returns:
+            List[str]: 生成的文本内容列表
+        """
+        responses = await self.generate_batch_async(prompts, **kwargs)
+        return [r.content if isinstance(r, LLMResponse) else str(r) for r in responses]
+    
+    def validate_template(self, template_name: str, **kwargs) -> Dict[str, Any]:
         """验证模板和参数
         
         Args:
@@ -189,16 +224,10 @@ class LLMService:
             **kwargs: 模板变量
             
         Returns:
-            bool: 验证是否通过
+            Dict[str, Any]: 验证结果
         """
-        try:
-            # 使用提示词管理器验证模板
-            prompt_manager = self._client.get_prompt_manager()
-            prompt_manager.format_prompt(template_name, **kwargs)
-            return True
-        except Exception as e:
-            logger.error(f"模板验证失败: {e}")
-            return False
+        # 直接调用客户端的validate_template方法
+        return self._client.validate_template(template_name, **kwargs)
     
     def get_available_templates(self) -> List[str]:
         """获取所有可用的提示词模板
@@ -206,12 +235,8 @@ class LLMService:
         Returns:
             List[str]: 模板名称列表
         """
-        try:
-            prompt_manager = self._client.get_prompt_manager()
-            return prompt_manager.list_prompts()
-        except Exception as e:
-            logger.error(f"获取模板列表失败: {e}")
-            return []
+        # 直接调用客户端的get_all_prompts方法
+        return self._client.get_all_prompts()
     
     def get_config(self) -> Dict[str, Any]:
         """获取当前配置
@@ -242,28 +267,84 @@ class LLMService:
         """健康检查
         
         Returns:
-            Dict[str, Any]: 健康状态信息
+            Dict[str, Any]: 健康状态
         """
-        try:
-            # 验证配置
-            config_valid = self._client.validate_config()
+        return self._client.health_check()
+    
+    def _update_call_history(self, prompt=None, response=None, template=None, error=None, **kwargs) -> None:
+        """更新调用历史记录
+        
+        Args:
+            prompt: 提示词
+            response: 响应对象
+            template: 模板名称
+            error: 错误信息
+            **kwargs: 其他参数
+        """
+        import time
+        # 提取必要信息用于历史记录
+        model = kwargs.get('model', 'unknown')
+        tokens = response.tokens_used if response and hasattr(response, 'tokens_used') else 0
+        success = error is None
+        
+        self._call_history.append({
+            'timestamp': time.time(),
+            'model': model,
+            'tokens': tokens,
+            'success': success,
+            'template': template
+        })
+        
+        # 限制历史记录长度
+        if len(self._call_history) > 1000:
+            self._call_history = self._call_history[-1000:]
+    
+    def _extract_variables_from_template(self, template: str) -> List[str]:
+        """从模板中提取变量名
+        
+        Args:
+            template: 模板字符串
             
-            # 获取模型信息
-            config = self._client.get_config()
-            
+        Returns:
+            List[str]: 变量名列表
+        """
+        import re
+        # 匹配 {variable} 格式的变量
+        matches = re.findall(r'\{(\w+)\}', template)
+        # 去重
+        return list(set(matches))
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """获取统计信息
+        
+        Returns:
+            Dict[str, Any]: 包含调用次数、成功率、令牌使用等统计信息
+        """
+        if not self._call_history:
             return {
-                'status': 'healthy' if config_valid else 'unhealthy',
-                'model': config.get('model', 'unknown'),
-                'config_valid': config_valid,
-                'available': config_valid
+                'total_calls': 0,
+                'successful_calls': 0,
+                'failed_calls': 0,
+                'total_tokens': 0,
+                'success_rate': 0
             }
-        except Exception as e:
-            logger.error(f"健康检查失败: {e}")
-            return {
-                'status': 'error',
-                'error': str(e),
-                'available': False
-            }
+        
+        total_calls = len(self._call_history)
+        successful_calls = sum(1 for call in self._call_history if call['success'])
+        failed_calls = total_calls - successful_calls
+        total_tokens = sum(call['tokens'] for call in self._call_history)
+        
+        return {
+            'total_calls': total_calls,
+            'successful_calls': successful_calls,
+            'failed_calls': failed_calls,
+            'total_tokens': total_tokens,
+            'success_rate': (successful_calls / total_calls * 100) if total_calls > 0 else 0
+        }
+    
+    def clear_stats(self) -> None:
+        """清除统计信息和调用历史"""
+        self._call_history = []
     
     def close(self) -> None:
         """关闭服务

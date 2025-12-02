@@ -5,6 +5,7 @@ LLM Service 单元测试
 
 import pytest
 from unittest import mock
+from unittest.mock import AsyncMock
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
@@ -12,26 +13,101 @@ from app.llm.llm_service import LLMService
 from app.llm.llm_client import LLMClient
 from app.llm.prompt_manager import PromptManager
 from app.llm.base import LLMResponse
-from app.llm.exceptions import LLMError, GenerationError, PromptError
+from app.exceptions.llm_exceptions import LLMError, GenerationError, PromptError
 
 
 @pytest.fixture
 def mock_llm_client():
     """模拟LLMClient"""
-    mock_client = mock.MagicMock(spec=LLMClient)
+    mock_client = mock.Mock()
+    # 使用与测试预期匹配的模型名称
+    model_name = "gpt-3.5-turbo"
+    
     # 模拟generate方法返回LLMResponse
     mock_client.generate.return_value = LLMResponse(
-        text="Mock response",
-        model="gpt-3.5-turbo",
-        tokens_used=100,
-        generation_time=0.5
+        content="Mock response",
+        metadata={"model": model_name},
+        tokens_used={"total": 100},
+        latency=0.5
     )
+    
+    # 模拟批量生成方法
+    mock_client.generate_batch.return_value = [
+        LLMResponse(
+            content="Mock batch response 0",
+            metadata={"model": model_name},
+            tokens_used={"total": 100},
+            latency=0.5
+        ),
+        LLMResponse(
+            content="Mock batch response 1",
+            metadata={"model": model_name},
+            tokens_used={"total": 100},
+            latency=0.5
+        ),
+        LLMResponse(
+            content="Mock batch response 2",
+            metadata={"model": model_name},
+            tokens_used={"total": 100},
+            latency=0.5
+        )
+    ]
+    
+    # 模拟异步方法
+    from unittest.mock import AsyncMock
+    mock_client.generate_async = AsyncMock(return_value=LLMResponse(
+        content="Mock async response",
+        metadata={"model": model_name},
+        tokens_used={"total": 100},
+        latency=0.5
+    ))
+    
+    mock_client.generate_batch_async = AsyncMock(return_value=[
+        LLMResponse(
+            content="Mock batch async response 0",
+            metadata={"model": model_name},
+            tokens_used={"total": 100},
+            latency=0.5
+        ),
+        LLMResponse(
+            content="Mock batch async response 1",
+            metadata={"model": model_name},
+            tokens_used={"total": 100},
+            latency=0.5
+        ),
+        LLMResponse(
+            content="Mock batch async response 2",
+            metadata={"model": model_name},
+            tokens_used={"total": 100},
+            latency=0.5
+        )
+    ])
+    
     # 模拟health_check方法
     mock_client.health_check.return_value = {
         'status': 'healthy',
-        'model': 'gpt-3.5-turbo',
+        'model': model_name,
         'response_time': 0.5
     }
+    
+    # 模拟validate_template方法
+    mock_client.validate_template.return_value = {"is_valid": True, "missing_variables": [], "extra_variables": []}
+    
+    # 模拟get_prompt_manager方法
+    mock_prompt_manager = mock.Mock()
+    mock_prompt_manager.get_all_prompts.return_value = ["template1", "template2"]
+    mock_prompt_manager.get_prompt.side_effect = lambda template_name: "Test prompt template" if template_name in ["template1", "template2"] else None
+    mock_client.get_prompt_manager.return_value = mock_prompt_manager
+    
+    # 确保mock_client有get_all_prompts方法
+    mock_client.get_all_prompts.return_value = ["template1", "template2"]
+    
+    # 添加get_config方法
+    mock_client.get_config.return_value = {"model": model_name}
+    
+    # 添加update_config方法
+    mock_client.update_config.return_value = None
+    
     return mock_client
 
 
@@ -44,15 +120,14 @@ def mock_prompt_manager():
 
 
 @pytest.fixture
-def llm_service(mock_llm_client, mock_prompt_manager):
+def llm_service(mock_llm_client):
     """LLMService实例"""
-    # 使用mock替代真实的LLMClient和PromptManager
+    # 使用mock替代真实的LLMClient
     with mock.patch('app.llm.llm_service.LLMClient', return_value=mock_llm_client):
-        with mock.patch('app.llm.llm_service.PromptManager', return_value=mock_prompt_manager):
-            # 清除单例状态以确保每次测试都是新实例
-            LLMService._instance = None
-            service = LLMService()
-            yield service
+        # 清除单例状态以确保每次测试都是新实例
+        LLMService._instance = None
+        service = LLMService()
+        yield service
 
 
 class TestLLMService:

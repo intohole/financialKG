@@ -87,16 +87,61 @@ class NewsProcessingConfig:
     sources: List[Dict[str, Any]]
     update_interval: int
 
+@dataclass
+class ItemWithDescription:
+    """
+    带描述的配置项
+    """
+    name: str
+    description: str = None
+
+    def to_markdown(self):
+        return f"- **{self.name}**: {self.description}"
+
+
+@dataclass
+class CategoryConfigItem:
+    """
+    类别配置项
+    """
+    category: ItemWithDescription
+    relation_types: list[ItemWithDescription]
+    entity_types: list[ItemWithDescription]
+
+    def get_relation_types_prompt(self):
+        return "\n".join([ f"- {relation_type.name}: {relation_type.description}" for relation_type in self.relation_types])
+
+    def get_entity_types_prompt(self):
+        return "\n".join([ f"- {entity_type.name}: {entity_type.description}" for entity_type in self.entity_types])
+
+
+
+
+@dataclass
+class EntityMergingConfig:
+    """
+    实体合并配置
+    """
+    enabled: bool
+    similarity_threshold: float
+    max_candidates: int
+
 
 @dataclass
 class KnowledgeGraphConfig:
     """
     知识图谱配置
+    支持多类别的知识图谱配置
     """
-    entity_types: List[str]
-    relation_types: List[str]
+    categories: Dict[str, CategoryConfigItem]
+    default_category: str
     similarity_threshold: float
     max_entities_per_news: int
+    entity_merging: EntityMergingConfig
+
+
+    def get_categories_prompt(self):
+        return "\n".join([ f"- {category.category.name}: {category.category.description}" for category in self.categories.values()])
 
 
 @dataclass
@@ -328,11 +373,51 @@ class ConfigManager:
     def get_knowledge_graph_config(self) -> KnowledgeGraphConfig:
         """获取知识图谱配置"""
         config = self.get_config().get('knowledge_graph', {})
+        
+        # 构建类别配置
+        categories_config = config.get('categories', {})
+        categories = {}
+        
+        for cat_key, cat_data in categories_config.items():
+            # 构建类别基本信息
+            category_item = ItemWithDescription(
+                name=cat_data.get('name', ''),
+                description=cat_data.get('description', '')
+            )
+            
+            # 构建关系类型列表
+            relation_types = [
+                ItemWithDescription(name=rel_type) 
+                for rel_type in cat_data.get('relation_types', [])
+            ]
+            
+            # 构建实体类型列表
+            entity_types = [
+                ItemWithDescription(name=ent_type) 
+                for ent_type in cat_data.get('entity_types', [])
+            ]
+            
+            # 构建类别配置项
+            categories[cat_key] = CategoryConfigItem(
+                category=category_item,
+                relation_types=relation_types,
+                entity_types=entity_types
+            )
+        
+        # 构建实体合并配置
+        entity_merging_config = config.get('entity_merging', {})
+        entity_merging = EntityMergingConfig(
+            enabled=entity_merging_config.get('enabled', True),
+            similarity_threshold=entity_merging_config.get('similarity_threshold', 0.85),
+            max_candidates=entity_merging_config.get('max_candidates', 5)
+        )
+        
         return KnowledgeGraphConfig(
-            entity_types=config.get('entity_types', []),
-            relation_types=config.get('relation_types', []),
+            categories=categories,
+            default_category=config.get('default_category', 'financial'),
             similarity_threshold=config.get('similarity_threshold', 0.7),
-            max_entities_per_news=config.get('max_entities_per_news', 50)
+            max_entities_per_news=config.get('max_entities_per_news', 50),
+            entity_merging=entity_merging
         )
     
     def get_cache_config(self) -> CacheConfig:
