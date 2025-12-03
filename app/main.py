@@ -21,6 +21,10 @@ def create_app() -> FastAPI:
     # 初始化配置管理器
     config_manager = ConfigManager()
     
+    # 初始化日志系统
+    from app.utils.logging_utils import initialize_logging
+    initialize_logging(config_manager)
+    
     # 初始化数据库
     init_database(config_manager.get_database_config())
     
