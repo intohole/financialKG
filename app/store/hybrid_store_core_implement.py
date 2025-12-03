@@ -567,6 +567,29 @@ class HybridStoreCore(StoreBase):
             logger.error(f"搜索新闻事件失败: {e}")
             raise StoreError(f"搜索新闻事件失败: {str(e)}")
     
+    async def add_entity_relation(self, news_event_id: int, entity_id: int) -> bool:
+        """添加新闻事件与实体的关联
+        
+        Args:
+            news_event_id: 新闻事件ID
+            entity_id: 实体ID
+            
+        Returns:
+            bool: 是否成功添加关联
+            
+        Raises:
+            StoreError: 操作失败
+        """
+        try:
+            async with self.db_manager.get_session() as session:
+                news_repository = NewsEventRepository(session)
+                success = await news_repository.add_entity_relation(news_event_id, entity_id)
+                return success
+                
+        except Exception as e:
+            logger.error(f"添加新闻事件与实体关联失败: {e}")
+            raise StoreError(f"添加新闻事件与实体关联失败: {str(e)}")
+    
     # 向量操作
     async def add_to_vector_index(self, 
                                 content: str,

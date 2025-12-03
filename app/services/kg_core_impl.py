@@ -273,7 +273,8 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                 summary_result, 
                 category_name,
                 len(processed_entities),
-                len(extraction_result.knowledge_graph.relations)
+                len(extraction_result.knowledge_graph.relations),
+                processed_entities
             )
             
             # 5. 构建并返回知识图谱
@@ -489,7 +490,8 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
         summary_result: Optional[ContentSummary], 
         category: str,
         entities_count: int,
-        relations_count: int
+        relations_count: int,
+        processed_entities: Dict[str, Entity]
     ) -> None:
         """
         从内容摘要创建新闻事件
@@ -499,6 +501,7 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             category: 内容分类
             entities_count: 实体数量
             relations_count: 关系数量
+            processed_entities: 处理后的实体映射
         """
         if not summary_result or not summary_result.title:
             logger.info("摘要结果无效，跳过创建新闻事件")
@@ -529,6 +532,14 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             
             created_news = await self.store.create_news_event(news_event)
             logger.info(f"成功创建新闻事件: ID={created_news.id}, title={created_news.title}, category={category}")
+            
+            # 关联新闻事件与实体
+            if processed_entities:
+                for entity_name, entity in processed_entities.items():
+                    try:
+                        await self.store.add_entity_relation(created_news.id, entity.id)
+                    except Exception as e:
+                        logger.error(f"关联新闻事件与实体失败: news_id={created_news.id}, entity_id={entity.id}, entity_name={entity_name}, error={e}")
             
         except ValueError as e:
             logger.error(f"创建新闻事件参数验证失败: {e}")
