@@ -17,17 +17,8 @@ const state = {
 // 页面初始化
 function initializePage() {
     if (typeof window.KGAPI === 'object') {
-        // 获取URL参数
         const urlParams = new URLSearchParams(window.location.search);
         state.entityId = urlParams.get('entity_id');
-        
-        // 如果有实体ID但没有对应的输入框，忽略它
-        if (state.entityId) {
-            const entityFilter = document.getElementById('entityFilter');
-            if (entityFilter) {
-                entityFilter.value = state.entityId;
-            }
-        }
         
         setupEventListeners();
         loadNews();
@@ -64,25 +55,22 @@ function setupEventListeners() {
 
 // 加载新闻列表
 async function loadNews() {
-    if (state.loading) return;
+    if (state.loading) {
+        return;
+    }
     
     try {
         state.loading = true;
         showLoading();
         
-        // 获取搜索参数
-        const searchInput = document.getElementById('searchKeyword');
-        
         let response;
         if (state.entityId) {
-            // 如果有实体ID，获取该实体的新闻
             response = await window.KGAPI.getEntityNews(state.entityId, {
                 page: state.currentPage,
-                page_size: state.pageSize,
-                search: searchInput && searchInput.value ? searchInput.value : null
+                page_size: state.pageSize
             });
         } else {
-            // 否则获取所有新闻
+            const searchInput = document.getElementById('searchKeyword');
             response = await window.KGAPI.getNewsList({
                 page: state.currentPage,
                 page_size: state.pageSize,
@@ -97,8 +85,6 @@ async function loadNews() {
         renderPagination();
         
     } catch (error) {
-        // 只在开发环境显示日志
-        console.error('加载新闻失败:', error);
         showError('加载新闻失败: ' + error.message, 'error');
     } finally {
         state.loading = false;
@@ -111,17 +97,25 @@ function renderNews() {
     const container = document.getElementById('news-container');
     
     if (!container) {
-        // 只在开发环境显示日志
-        console.error('news-container element not found');
         return;
     }
     
+    updateStats();
+    
     if (state.news.length === 0) {
+        let emptyMessage = '暂无新闻数据';
+        let emptyDesc = '您可以先添加一些新闻数据';
+        
+        if (state.entityId) {
+            emptyMessage = `实体 ${state.entityId} 暂无关联新闻`;
+            emptyDesc = '该实体还没有关联任何新闻';
+        }
+        
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-icon">📰</div>
-                <div class="empty-text">暂无新闻数据</div>
-                <div class="empty-desc">您可以先添加一些新闻数据</div>
+                <div class="empty-text">${emptyMessage}</div>
+                <div class="empty-desc">${emptyDesc}</div>
             </div>
         `;
         return;
@@ -152,8 +146,6 @@ function renderNews() {
 function renderPagination() {
     const container = document.getElementById('pagination-container');
     if (!container) {
-        // 只在开发环境显示日志
-        console.error('pagination-container element not found');
         return;
     }
     
@@ -227,7 +219,6 @@ async function showNewsDetails(newsId) {
         
         state.selectedNews = news;
         
-        // 创建模态框
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -291,14 +282,10 @@ async function showNewsDetails(newsId) {
                 entitiesContainer.innerHTML = '<div class="empty-text">暂无相关实体</div>';
             }
         } catch (entitiesError) {
-                // 只在开发环境显示日志
-                console.error('加载实体失败:', entitiesError);
-                document.getElementById('news-entities').innerHTML = '<div class="error-text">加载实体失败</div>';
-            }
+            document.getElementById('news-entities').innerHTML = '<div class="error-text">加载实体失败</div>';
+        }
         
     } catch (error) {
-        // 只在开发环境显示日志
-        console.error('显示新闻详情失败:', error);
         showError('显示新闻详情失败: ' + error.message, 'error');
     }
 }
@@ -314,10 +301,39 @@ function closeModal() {
     if (modal) modal.remove();
 }
 
+// 更新统计信息
+function updateStats() {
+    // 更新总新闻数
+    const totalNewsElement = document.getElementById('totalNewsCount');
+    if (totalNewsElement) {
+        totalNewsElement.textContent = state.totalNews.toLocaleString();
+    }
+    
+    // 更新结果信息
+    const resultsInfo = document.getElementById('resultsInfo');
+    if (resultsInfo) {
+        const startItem = state.totalNews > 0 ? ((state.currentPage - 1) * state.pageSize + 1) : 0;
+        const endItem = Math.min(state.currentPage * state.pageSize, state.totalNews);
+        resultsInfo.textContent = `显示 ${startItem}-${endItem} 条，共 ${state.totalNews} 条新闻`;
+    }
+    
+    // 这里可以添加获取实体数量的逻辑
+    // 暂时显示为0，后续可以通过API获取
+    const entityCount = document.getElementById('entityCount');
+    if (entityCount) {
+        entityCount.textContent = '0';
+    }
+}
+
 function showLoading() {
     const container = document.getElementById('news-container');
     if (container) {
-        container.innerHTML = '<div class="loading-spinner"></div>';
+        container.innerHTML = `
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <div class="loading-text">正在加载新闻数据...</div>
+            </div>
+        `;
     }
 }
 
@@ -326,7 +342,6 @@ function hideLoading() {
 }
 
 function showError(message, type) {
-    // 显示错误消息
     const errorContainer = document.getElementById('error-container');
     if (errorContainer) {
         errorContainer.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
@@ -335,9 +350,6 @@ function showError(message, type) {
             errorContainer.style.display = 'none';
         }, 5000);
     } else {
-        // 如果没有错误容器，使用alert
-        // 只在开发环境显示日志
-        console.error('Error:', message);
         alert(message);
     }
 }
@@ -402,18 +414,9 @@ function truncateText(text, maxLength) {
 
 
 
-// 页面初始化
-function initNewsPage() {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initializePage);
-    } else {
-        // 确保DOM完全加载
-        if (document.getElementById('news-container')) {
-            initializePage();
-        } else {
-            setTimeout(initNewsPage, 100);
-        }
-    }
+// 页面初始化 - 直接使用DOMContentLoaded事件，简化逻辑
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializePage);
+} else {
+    initializePage();
 }
-
-initNewsPage();

@@ -16,7 +16,18 @@ const state = {
 // 页面初始化
 function initializePage() {
     if (typeof window.KGAPI === 'object') {
-        loadEntities();
+        // 检查URL参数，如果有news_id参数，表示是从新闻页面跳转过来的
+        const urlParams = new URLSearchParams(window.location.search);
+        const newsId = urlParams.get('news_id');
+        
+        if (newsId) {
+            // 如果有news_id，先加载该新闻的实体，然后显示
+            loadNewsEntities(newsId);
+        } else {
+            // 否则正常加载实体列表
+            loadEntities();
+        }
+        
         setupEventListeners();
     } else {
         setTimeout(initializePage, 100);
@@ -62,7 +73,6 @@ async function loadEntities() {
         state.loading = true;
         showLoading();
         
-        // 获取搜索参数
         const searchInput = document.getElementById('searchKeyword');
         const typeSelect = document.getElementById('entityType');
         
@@ -80,8 +90,6 @@ async function loadEntities() {
         renderPagination();
         
     } catch (error) {
-        // 只在开发环境显示日志
-        console.error('加载实体失败:', error);
         showError('加载实体失败: ' + error.message, 'error');
     } finally {
         state.loading = false;
@@ -93,30 +101,57 @@ async function loadEntities() {
 function renderEntities() {
     const container = document.getElementById('entities-container');
     
+    // 检查URL参数，如果有news_id参数，表示是从新闻页面跳转过来的
+    const urlParams = new URLSearchParams(window.location.search);
+    const newsId = urlParams.get('news_id');
+    
+    // 更新统计信息
+    updateStats();
+    
     if (state.entities.length === 0) {
+        let emptyMessage = '暂无实体数据';
+        let emptyDesc = '您可以先添加一些实体数据';
+        
+        if (newsId) {
+            emptyMessage = '该新闻暂无关联实体';
+            emptyDesc = '该新闻还没有提取到任何实体信息';
+        }
+        
         container.innerHTML = `
             <div class="empty-state">
                 <div class="empty-icon">📊</div>
-                <div class="empty-text">暂无实体数据</div>
-                <div class="empty-desc">您可以先添加一些实体数据</div>
+                <div class="empty-text">${emptyMessage}</div>
+                <div class="empty-desc">${emptyDesc}</div>
             </div>
         `;
         return;
     }
     
+    // 根据是否有news_id参数来显示不同的标题
+    let sectionTitle = '实体列表';
+    if (newsId) {
+        sectionTitle = '相关实体';
+    }
+    
+    // 更新页面标题
+    const entitiesTitle = document.getElementById('entitiesTitle');
+    if (entitiesTitle) {
+        entitiesTitle.textContent = newsId ? '📋 相关实体' : '🏷️ 实体列表';
+    }
+    
     container.innerHTML = `
         <div class="entities-grid">
             ${state.entities.map(entity => `
-                <div class="entity-card" onclick="showEntityDetails('${entity.id}')">
+                <div class="entity-card" onclick="showEntityDetails(${entity.id})">
                     <div class="entity-header">
                         <div class="entity-name">${escapeHtml(entity.name)}</div>
-                        <span class="entity-type ${getEntityTypeClass(entity.type)}">${getEntityTypeLabel(entity.type)}</span>
+                        <span class="entity-type ${getEntityTypeClass(entity.entity_type)}">${getEntityTypeLabel(entity.entity_type)}</span>
                     </div>
                     <div class="entity-description">${escapeHtml(entity.description || '暂无描述')}</div>
                     <div class="entity-meta">
                         <div class="entity-time">创建于 ${formatDate(entity.created_at)}</div>
                         <div class="entity-actions">
-                            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); showEntityNews('${entity.id}')">查看新闻</button>
+                            <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); showEntityNews(${entity.id})">查看新闻</button>
                         </div>
                     </div>
                 </div>
@@ -174,7 +209,6 @@ async function showEntityDetails(entityId) {
         
         state.selectedEntity = entity;
         
-        // 创建模态框
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -189,7 +223,7 @@ async function showEntityDetails(entityId) {
                         <div class="detail-grid">
                             <div class="detail-item">
                                 <label>类型:</label>
-                                <span class="entity-type ${getEntityTypeClass(entity.type)}">${getEntityTypeLabel(entity.type)}</span>
+                                <span class="entity-type ${getEntityTypeClass(entity.entity_type)}">${getEntityTypeLabel(entity.entity_type)}</span>
                             </div>
                             <div class="detail-item">
                                 <label>创建时间:</label>
@@ -217,7 +251,6 @@ async function showEntityDetails(entityId) {
         
         document.body.appendChild(modal);
         
-        // 加载相关新闻
         try {
             const newsRes = await window.KGAPI.getEntityNews(entityId, {
                 page: 1,
@@ -236,14 +269,10 @@ async function showEntityDetails(entityId) {
                 newsContainer.innerHTML = '<div class="empty-text">暂无相关新闻</div>';
             }
         } catch (newsError) {
-                // 只在开发环境显示日志
-                console.error('加载新闻失败:', newsError);
-                document.getElementById('entity-news').innerHTML = '<div class="error-text">加载新闻失败</div>';
-            }
+            document.getElementById('entity-news').innerHTML = '<div class="error-text">加载新闻失败</div>';
+        }
         
     } catch (error) {
-        // 只在开发环境显示日志
-        console.error('显示实体详情失败:', error);
         showError('显示实体详情失败: ' + error.message, 'error');
     }
 }
@@ -251,6 +280,66 @@ async function showEntityDetails(entityId) {
 // 显示实体新闻
 function showEntityNews(entityId) {
     window.location.href = `news.html?entity_id=${entityId}`;
+}
+
+// 加载特定新闻的实体
+async function loadNewsEntities(newsId) {
+    if (state.loading) return;
+    
+    try {
+        state.loading = true;
+        showLoading();
+        
+        const response = await window.KGAPI.getNewsEntities(newsId, {
+            limit: 100
+        });
+        
+        state.entities = response.entities || [];
+        state.totalItems = response.entities ? response.entities.length : 0;
+        
+        renderEntities();
+        renderPagination();
+        
+    } catch (error) {
+        if (error.response && error.response.status === 404) {
+            state.entities = [];
+            state.totalItems = 0;
+            renderEntities();
+            renderPagination();
+        } else {
+            showError('加载新闻实体失败: ' + error.message, 'error');
+            hideLoading();
+        }
+    } finally {
+        if (state.loading) {
+            state.loading = false;
+            hideLoading();
+        }
+    }
+}
+
+// 更新统计信息
+function updateStats() {
+    // 更新总实体数
+    const totalEntityElement = document.getElementById('totalEntityCount');
+    if (totalEntityElement) {
+        totalEntityElement.textContent = state.totalItems.toLocaleString();
+    }
+    
+    // 更新结果信息
+    const resultsInfo = document.getElementById('resultsInfo');
+    if (resultsInfo) {
+        const startItem = state.totalItems > 0 ? ((state.currentPage - 1) * state.pageSize + 1) : 0;
+        const endItem = Math.min(state.currentPage * state.pageSize, state.totalItems);
+        resultsInfo.textContent = `显示 ${startItem}-${endItem} 个，共 ${state.totalItems} 个实体`;
+    }
+    
+    // 这里可以添加获取关系数量的逻辑
+    // 暂时显示为0，后续可以通过API获取
+    const relationCount = document.getElementById('relationCount');
+    if (relationCount) {
+        relationCount.textContent = '0';
+    }
 }
 
 // 工具函数
@@ -269,14 +358,9 @@ function hideLoading() {
 }
 
 function showError(message, type) {
-    // 直接使用config.js中定义的window.showError，避免递归
     if (typeof window.showError === 'function') {
-        // 保存原始函数引用，避免递归
-        const originalShowError = window.showError;
-        originalShowError(message, type);
+        window.showError(message, type);
     } else {
-        // 只在开发环境显示日志
-        console.error('Error:', message);
         alert(message);
     }
 }
@@ -306,12 +390,33 @@ function getEntityTypeLabel(type) {
         city: '城市',
         country: '国家',
         province: '省份',
+        '公司': '公司',
+        '产品': '产品',
+        '地点': '地点',
+        '人物': '人物',
+        '组织': '组织',
+        '概念': '概念',
+        '市场': '市场',
         other: '其他'
     };
     return labels[type] || type || '未知';
 }
 
 function getEntityTypeClass(type) {
+    // 映射中文类型到英文类型，便于CSS类名使用
+    const typeMapping = {
+        '人物': 'person',
+        '公司': 'company',
+        '产品': 'product',
+        '地点': 'location',
+        '组织': 'organization',
+        '概念': 'concept',
+        '市场': 'concept',
+        'event': 'event',
+        'other': 'other'
+    };
+    
+    // 先尝试直接映射，再尝试映射中文类型，最后使用默认值
     const classes = {
         person: 'type-person',
         organization: 'type-organization',
@@ -319,9 +424,18 @@ function getEntityTypeClass(type) {
         event: 'type-event',
         product: 'type-product',
         concept: 'type-concept',
+        company: 'type-organization',
         other: 'type-other'
     };
-    return classes[type] || 'type-other';
+    
+    // 首先尝试直接使用type
+    if (classes[type]) {
+        return classes[type];
+    }
+    
+    // 然后尝试映射中文类型
+    const mappedType = typeMapping[type] || 'other';
+    return classes[mappedType] || 'type-other';
 }
 
 function formatDate(dateString) {

@@ -28,13 +28,25 @@ async function apiRequest(endpoint, options = {}) {
         try {
             const response = await fetch(url, finalOptions);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                // 创建包含response对象的错误
+                const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+                error.response = response;
+                error.status = response.status;
+                error.statusText = response.statusText;
+                
+                // 尝试获取错误详情
+                try {
+                    const errorData = await response.json();
+                    error.data = errorData;
+                } catch {
+                    // 如果无法解析JSON，不影响错误对象
+                }
+                
+                throw error;
             }
             return await response.json();
         } catch (error) {
             lastError = error;
-            // 显示重试日志
-            console.warn(`请求失败 (尝试 ${i + 1}/${API_CONFIG.RETRY_COUNT}):`, error.message);
             if (i < API_CONFIG.RETRY_COUNT - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
             }
