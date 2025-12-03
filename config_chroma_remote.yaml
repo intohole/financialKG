@@ -1,0 +1,20 @@
+# 向量搜索配置 - 远程Chroma模式
+vector_search:
+  # 向量数据库类型，支持 'chroma', 'chroma_remote', 'pinecone', 'weaviate' 等
+  type: "chroma_remote"
+  # 本地存储路径（适用于chroma等本地向量数据库）
+  path: "./data/chroma"
+  # 远程主机地址（适用于远程向量数据库，如chroma_remote）
+  host: "localhost"
+  # 端口号（适用于远程向量数据库）
+  port: 8000
+  # API密钥（适用于需要认证的向量数据库）
+  # api_key: "your-api-key"
+  # 超时时间（秒）
+  timeout: 30
+  # 默认集合名称
+  collection_name: "default"
+  # 默认向量维度（与embedding模型匹配）
+  dimension: 1536
+  # 距离度量方式，可选 'cosine', 'euclidean', 'l2' 等
+  metric: "cosine"

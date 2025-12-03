@@ -41,7 +41,36 @@
     <div class="container main-content">
         <div id="error-container" style="display: none;"></div>
         
+        <!-- 页面标题和统计信息 -->
+        <div class="page-header">
+            <div class="page-title-section">
+                <h2 class="page-title">📰 新闻管理中心</h2>
+                <p class="page-subtitle">智能知识图谱驱动的新闻内容管理与分析平台</p>
+            </div>
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="totalNewsCount">0</div>
+                        <div class="stat-label">总新闻数</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🏷️</div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="entityCount">0</div>
+                        <div class="stat-label">关联实体</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 智能搜索区域 -->
         <div class="search-section">
+            <div class="search-header">
+                <h3 class="search-title">🔍 智能搜索</h3>
+                <p class="search-description">基于知识图谱的智能内容检索与分析</p>
+            </div>
             <div class="search-form">
                 <div class="form-group">
                     <label class="form-label">搜索关键词</label>
@@ -57,14 +86,29 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <button class="btn btn-primary" onclick="searchNews()">搜索</button>
-                    <button class="btn btn-secondary" onclick="resetSearch()" style="margin-top: 8px;">重置</button>
+                    <button class="btn btn-primary" onclick="searchNews()">
+                        <span class="btn-icon">🔍</span>
+                        搜索新闻
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetSearch()" style="margin-top: 8px;">
+                        <span class="btn-icon">🔄</span>
+                        重置搜索
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div id="news-container"></div>
-        <div id="pagination-container"></div>
+        <!-- 新闻内容区域 -->
+        <div class="content-section">
+            <div class="section-header">
+                <h3 class="section-title">📋 新闻列表</h3>
+                <div class="section-controls">
+                    <span class="results-info" id="resultsInfo">共找到 0 条新闻</span>
+                </div>
+            </div>
+            <div id="news-container"></div>
+            <div id="pagination-container"></div>
+        </div>
     </div>
 
     <script src="config.js"></script>

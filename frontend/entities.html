@@ -39,7 +39,38 @@
     </div>
 
     <div class="container main-content">
-        <div class="search-section">
+        <div id="error-container" style="display: none;"></div>
+        
+        <!-- 页面标题和统计信息 -->
+        <div class="page-header">
+            <div class="page-title-section">
+                <h2 class="page-title">🏷️ 实体管理中心</h2>
+                <p class="page-subtitle">智能知识图谱驱动的实体内容管理与分析平台</p>
+            </div>
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="totalEntityCount">0</div>
+                        <div class="stat-label">总实体数</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🔗</div>
+                    <div class="stat-content">
+                        <div class="stat-number" id="relationCount">0</div>
+                        <div class="stat-label">关联关系</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 智能搜索区域 -->
+        <div class="search-section" id="searchSection">
+            <div class="search-header">
+                <h3 class="search-title">🔍 智能搜索</h3>
+                <p class="search-description">基于知识图谱的智能实体检索与分析</p>
+            </div>
             <div class="search-form">
                 <div class="form-group">
                     <label class="form-label">搜索实体</label>
@@ -57,14 +88,29 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <button class="btn btn-primary" onclick="searchEntities()">搜索</button>
-                    <button class="btn btn-secondary" onclick="resetSearch()" style="margin-top: 8px;">重置</button>
+                    <button class="btn btn-primary" onclick="searchEntities()">
+                        <span class="btn-icon">🔍</span>
+                        搜索实体
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetSearch()" style="margin-top: 8px;">
+                        <span class="btn-icon">🔄</span>
+                        重置搜索
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div id="entities-container"></div>
-        <div id="pagination-container"></div>
+        <!-- 实体内容区域 -->
+        <div class="content-section">
+            <div class="section-header">
+                <h3 class="section-title" id="entitiesTitle">🏷️ 实体列表</h3>
+                <div class="section-controls">
+                    <span class="results-info" id="resultsInfo">共找到 0 个实体</span>
+                </div>
+            </div>
+            <div id="entities-container"></div>
+            <div id="pagination-container"></div>
+        </div>
     </div>
 
     <script src="config.js"></script>

@@ -65,6 +65,14 @@
                         </select>
                     </div>
                     <div class="form-group">
+                        <label for="depth">搜索深度:</label>
+                        <select id="depth" name="depth">
+                            <option value="1">1级邻居</option>
+                            <option value="2" selected>2级邻居</option>
+                            <option value="3">3级邻居</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <button type="submit" class="btn btn-primary">搜索</button>
                     </div>
                 </form>
@@ -73,7 +81,7 @@
             <div id="graph-svg" class="graph-svg">
                 <!-- 缩放控制 -->
                 <div class="zoom-controls">
-                    <button class="zoom-btn" onclick="resetView()" title="重置视图">🔄</button>
+                    <button class="zoom-btn" id="resetViewBtn" title="重置视图">🔄</button>
                 </div>
             </div>
 

@@ -8,6 +8,7 @@ from app.vector.vector_search_abstract import VectorSearchBase
 
 # 导出Chroma实现
 from app.vector.chroma_vector_search import ChromaVectorSearch
+from app.vector.chroma_remote_vector_search import ChromaRemoteVectorSearch
 
 # 导出服务管理类
 from app.vector.vector_service import VectorSearchService
@@ -36,6 +37,7 @@ __all__ = [
     # 核心类
     "VectorSearchBase",
     "ChromaVectorSearch",
+    "ChromaRemoteVectorSearch",
     "VectorSearchService",
 ]
 

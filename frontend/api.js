@@ -58,7 +58,7 @@ const KGAPI = {
         });
         
         const queryString = queryParams.toString();
-        return await apiRequest(`/entities?${queryString}`);
+        return await apiRequest(`/entities${queryString ? '?' + queryString : ''}`);
     },
 
     /**

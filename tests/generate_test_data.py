@@ -95,23 +95,23 @@ class TestDataGenerator:
             
             # 生成科技公司实体
             for company in random.sample(self.tech_companies, min(8, len(self.tech_companies))):
-                entity = await entity_repo.create(
-                    name=company,
-                    type="科技公司",
-                    description=f"{company}是一家专注于人工智能和高科技产品研发的公司",
-                    meta_data={"industry": "科技", "focus": "AI", "scale": "large"}
-                )
+                entity = await entity_repo.create({
+                    "name": company,
+                    "type": "科技公司",
+                    "description": f"{company}是一家专注于人工智能和高科技产品研发的公司",
+                    "meta_data": {"industry": "科技", "focus": "AI", "scale": "large"}
+                })
                 entities.append(entity)
                 logger.info(f"创建实体: {company}")
             
             # 生成AI概念实体
             for concept in random.sample(self.ai_concepts, min(8, len(self.ai_concepts))):
-                entity = await entity_repo.create(
-                    name=concept,
-                    type="技术概念",
-                    description=f"{concept}是人工智能领域的重要技术分支",
-                    meta_data={"category": "AI", "maturity": "developing", "applications": ["industry", "research"]}
-                )
+                entity = await entity_repo.create({
+                    "name": concept,
+                    "type": "技术概念",
+                    "description": f"{concept}是人工智能领域的重要技术分支",
+                    "meta_data": {"category": "AI", "maturity": "developing", "applications": ["industry", "research"]}
+                })
                 entities.append(entity)
                 logger.info(f"创建实体: {concept}")
             

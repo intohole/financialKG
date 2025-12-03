@@ -10,6 +10,7 @@ from app.config.config_manager import ConfigManager, VectorSearchConfig
 from app.exceptions import VectorSearchError
 from app.utils.logging_utils import get_logger
 from app.vector.chroma_vector_search import ChromaVectorSearch
+from app.vector.chroma_remote_vector_search import ChromaRemoteVectorSearch
 from app.vector.vector_search_abstract import VectorSearchBase
 
 logger = get_logger(__name__)
@@ -128,6 +129,8 @@ class VectorSearchService:
         # 根据类型创建相应的向量搜索实例
         if config.type.lower() == 'chroma':
             return self._create_chroma_instance(config, instance_name)
+        elif config.type.lower() == 'chroma_remote':
+            return self._create_chroma_remote_instance(config, instance_name)
         elif config.type.lower() == 'pinecone':
             # 预留支持Pinecone的接口
             raise VectorSearchError("Pinecone支持尚未实现")
@@ -139,7 +142,7 @@ class VectorSearchService:
 
     def _create_chroma_instance(self, config: VectorSearchConfig, instance_name: str) -> ChromaVectorSearch:
         """
-        创建Chroma向量搜索实例
+        创建Chroma向量搜索实例（本地模式）
         
         Args:
             config: 向量搜索配置
@@ -164,6 +167,33 @@ class VectorSearchService:
         
         # 创建并返回实例
         return ChromaVectorSearch(**chroma_kwargs)
+
+    def _create_chroma_remote_instance(self, config: VectorSearchConfig, instance_name: str) -> ChromaRemoteVectorSearch:
+        """
+        创建Chroma远程向量搜索实例
+        
+        Args:
+            config: 向量搜索配置
+            instance_name: 实例名称
+            
+        Returns:
+            ChromaRemoteVectorSearch: Chroma远程向量搜索实例
+        """
+        # 验证必需参数
+        if not config.host or not config.port:
+            raise VectorSearchError("Chroma远程模式需要指定host和port参数")
+        
+        # 构建Chroma远程配置参数
+        chroma_kwargs = {
+            'host': config.host,
+            'port': config.port,
+            'metric': config.metric,
+            'timeout': config.timeout,
+            'anonymized_telemetry': False
+        }
+        
+        # 创建并返回实例
+        return ChromaRemoteVectorSearch(**chroma_kwargs)
 
     def create_index(self, index_name: str, dimension: int, **kwargs) -> bool:
         """

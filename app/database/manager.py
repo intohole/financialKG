@@ -30,12 +30,13 @@ class DatabaseManager:
             self._init_engine()
         except Exception as e:
             # 确保DatabaseError在作用域内
-            raise DatabaseError(f"数据库管理器初始化失败: {e}")
+            raise DatabaseError(f"数据库管理器初始化失败: {e}") from e
     
     def _init_engine(self):
         """初始化数据库引擎""" 
         try:
             from sqlalchemy.ext.asyncio import create_async_engine
+            from .core import DatabaseError
             
             # 获取数据库URL，支持不同的配置对象
             database_url = getattr(self.config, 'database_url', None) or getattr(self.config, 'url', None)

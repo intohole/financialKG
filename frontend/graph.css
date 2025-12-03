@@ -31,17 +31,21 @@
 }
 
 .control-btn {
-    padding: 8px 12px;
-    border: 1px solid #d1d5db;
-    background: white;
-    border-radius: 6px;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
     cursor: pointer;
-    font-size: 0.9rem;
     transition: all 0.3s ease;
 }
 
 .control-btn:hover {
-    background: #f3f4f6;
+    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(240, 147, 251, 0.3);
 }
 
 .control-btn.active {
@@ -72,6 +76,28 @@
 .graph-node.selected {
     stroke-width: 3px;
     stroke: #667eea;
+}
+
+/* 层级节点样式 */
+.graph-node.level-0 {
+    stroke: #ff6b6b;
+    stroke-width: 3px;
+    filter: drop-shadow(0 0 8px rgba(255, 107, 107, 0.3));
+}
+
+.graph-node.level-1 {
+    stroke: #4ecdc4;
+    stroke-width: 2px;
+}
+
+.graph-node.level-2 {
+    stroke: #45b7d1;
+    stroke-width: 2px;
+}
+
+.graph-node.level-3 {
+    stroke: #96ceb4;
+    stroke-width: 2px;
 }
 
 .node-circle {
@@ -357,38 +383,90 @@
 /* 搜索表单 */
 .search-section {
     background: white;
-    border-radius: 4px;
-    padding: 12px;
-    margin-bottom: 12px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
 }
 
 .search-form {
     display: flex;
-    gap: 8px;
-    align-items: center;
+    gap: 15px;
+    align-items: end;
+    flex-wrap: wrap;
 }
 
-.search-input {
-    flex: 1;
-    padding: 6px 10px;
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 120px;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.form-group input,
+.form-group select {
+    padding: 8px 12px;
     border: 1px solid #ddd;
-    border-radius: 3px;
-    font-size: 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    background: white;
+    min-width: 120px;
 }
 
-.search-btn {
-    padding: 6px 12px;
-    background: #667eea;
-    color: white;
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: #409eff;
+    box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2);
+}
+
+.btn {
+    padding: 8px 16px;
     border: none;
-    border-radius: 3px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
-    font-size: 12px;
+    transition: all 0.3s ease;
 }
 
-.search-btn:hover {
-    background: #5a67d8;
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #5a67d8 0%, #6a3f8a 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+/* 简单加载状态 */
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.loading::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f4f6;
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 10px;
 }
 
 .loading-spinner {

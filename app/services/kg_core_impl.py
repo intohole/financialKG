@@ -222,29 +222,44 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             ValueError: 当内容为空或无效时
             RuntimeError: 当处理过程中出现错误时
         """
+        import time
+        total_start_time = time.time()
+        
         try:
+            logger.info(f"[START] 开始处理内容，长度: {len(content)}")
+            
             # 确保store已初始化
+            store_init_time = time.time()
             await self._ensure_store_initialized()
+            store_init_elapsed = time.time() - store_init_time
+            logger.info(f"[STORE] 存储初始化完成，耗时: {store_init_elapsed:.2f}秒")
             
             if not self._validate_store_initialized():
                 raise RuntimeError("存储未初始化，请先调用initialize方法")
-            similar_events =  await self.store.search_news_events(content,top_k=5)
+            
+            # 搜索相似新闻事件
+            similar_search_time = time.time()
+            similar_events = await self.store.search_news_events(content, top_k=5)
+            similar_search_elapsed = time.time() - similar_search_time
+            logger.info(f"[SIMILAR] 相似新闻搜索完成，耗时: {similar_search_elapsed:.2f}秒, 找到 {len(similar_events) if similar_events else 0} 条相似新闻")
+            
             knowledge_graph_config = self.config.get_knowledge_graph_config()
 
-
+            # 检查相似性阈值
             if similar_events and max([e.score for e in similar_events]) > knowledge_graph_config.filter_news_similarity_threshold:
+                logger.info(f"[SKIP] 新闻过于相似，跳过处理")
                 return KnowledgeGraph()
 
             self._log_operation_start("处理内容", 长度=len(content))
             
-            # 获取配置
-
             # 1. 内容分类
+            classify_time = time.time()
             classification_result = await self.content_processor.classify_content(
                 content, 
                 categories_prompt=knowledge_graph_config.get_categories_prompt()
             )
-            logger.info(f"内容分类结果: {classification_result.category}, 置信度: {classification_result.confidence}")
+            classify_elapsed = time.time() - classify_time
+            logger.info(f"[CLASSIFY] 内容分类完成，耗时: {classify_elapsed:.2f}秒, 结果: {classification_result.category}, 置信度: {classification_result.confidence}")
             
             # 确定分类
             category_name = self._get_category_name(classification_result)
@@ -252,32 +267,54 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
             if not category_info:
                 raise ValueError(f"未知的分类: {category_name}")
 
-
-            
+            # 2. 实体和关系提取
+            extract_time = time.time()
             extraction_result = await self.content_processor.extract_entities_and_relations(
                 content, 
                 entity_types=category_info.get_entity_types_prompt(),
                 relation_types=category_info.get_relation_types_prompt()
             )
+            extract_elapsed = time.time() - extract_time
+            entities_count = len(extraction_result.knowledge_graph.entities)
+            relations_count = len(extraction_result.knowledge_graph.relations)
+            logger.info(f"[EXTRACT] 实体关系提取完成，耗时: {extract_elapsed:.2f}秒, 实体数量: {entities_count}, 关系数量: {relations_count}")
+            
             self._log_operation_start("提取结果", 
-                                    实体数量=len(extraction_result.knowledge_graph.entities),
-                                    关系数量=len(extraction_result.knowledge_graph.relations))
+                                    实体数量=entities_count,
+                                    关系数量=relations_count)
             
-            # 3. 处理实体和关系
+            # 3. 处理实体
+            process_entity_time = time.time()
             processed_entities = await self._process_entities_with_vector_search(extraction_result.knowledge_graph.entities)
-            await self._process_relations(extraction_result.knowledge_graph.relations, processed_entities)
+            process_entity_elapsed = time.time() - process_entity_time
+            logger.info(f"[PROCESS ENTITY] 实体处理完成，耗时: {process_entity_elapsed:.2f}秒, 处理后实体数量: {len(processed_entities)}")
             
-            # 4. 生成摘要和创建新闻事件
+            # 4. 处理关系
+            process_relation_time = time.time()
+            await self._process_relations(extraction_result.knowledge_graph.relations, processed_entities)
+            process_relation_elapsed = time.time() - process_relation_time
+            logger.info(f"[PROCESS RELATION] 关系处理完成，耗时: {process_relation_elapsed:.2f}秒")
+            
+            # 5. 生成摘要
+            summary_time = time.time()
             summary_result = await self._process_content_summary(content, processed_entities)
+            summary_elapsed = time.time() - summary_time
+            logger.info(f"[SUMMARY] 摘要生成完成，耗时: {summary_elapsed:.2f}秒, 标题: {summary_result.title if summary_result else '无'}")
+            
+            # 6. 创建新闻事件
+            news_time = time.time()
             await self._create_news_event_from_summary(
                 summary_result, 
                 category_name,
                 len(processed_entities),
-                len(extraction_result.knowledge_graph.relations),
+                relations_count,
                 processed_entities
             )
+            news_elapsed = time.time() - news_time
+            logger.info(f"[NEWS] 新闻事件创建完成，耗时: {news_elapsed:.2f}秒")
             
-            # 5. 构建并返回知识图谱
+            # 7. 构建并返回知识图谱
+            build_time = time.time()
             knowledge_graph = await self._build_knowledge_graph(
                 content, 
                 processed_entities, 
@@ -285,11 +322,18 @@ class KGCoreImplService(BaseService,KGCoreAbstractService):
                 category_name,
                 summary_result
             )
+            build_elapsed = time.time() - build_time
+            logger.info(f"[BUILD] 知识图谱构建完成，耗时: {build_elapsed:.2f}秒")
             
-            self._log_operation_success("内容处理")
+            total_elapsed = time.time() - total_start_time
+            self._log_operation_success("内容处理", 总耗时=f"{total_elapsed:.2f}秒")
+            logger.info(f"[END] 内容处理完成，总耗时: {total_elapsed:.2f}秒, 最终实体数量: {len(knowledge_graph.entities)}, 最终关系数量: {len(knowledge_graph.relations)}")
+            
             return knowledge_graph
             
         except Exception as e:
+            total_elapsed = time.time() - total_start_time
+            logger.error(f"[ERROR] 内容处理失败，总耗时: {total_elapsed:.2f}秒, 错误: {e}", exc_info=True)
             self._handle_operation_error("处理内容", e)
     
     def _get_category_name(self, classification_result) -> str:

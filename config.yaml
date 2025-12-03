@@ -83,7 +83,7 @@ logging:
       propagate: false
   root:
     level: "INFO"
-    handlers: ["console"]
+    handlers: ["console", "file"]
 
 # 新闻处理配置
 news_processing:

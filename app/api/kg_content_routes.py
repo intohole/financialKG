@@ -136,14 +136,20 @@ async def _background_process_content(kg_service, content, task_id, content_id=N
         task_id: 任务ID
         content_id: 内容ID
     """
+    import time
+    start_time = time.time()
+    
     try:
-        logger.info(f"开始后台处理任务 {task_id}")
+        logger.info(f"开始后台处理任务 {task_id}, 内容长度: {len(content)}, content_id: {content_id}")
+        
         knowledge_graph = await kg_service.process_content(content)
-        logger.info(f"任务 {task_id} 处理完成 {knowledge_graph}")
-
+        
+        elapsed_time = time.time() - start_time
+        logger.info(f"任务 {task_id} 处理完成，耗时: {elapsed_time:.2f}秒, 实体数量: {len(knowledge_graph.entities)}, 关系数量: {len(knowledge_graph.relations)}")
 
     except Exception as e:
-        logger.error(f"后台任务 {task_id} 处理失败: {e}")
+        elapsed_time = time.time() - start_time
+        logger.error(f"后台任务 {task_id} 处理失败, 耗时: {elapsed_time:.2f}秒, 错误: {e}", exc_info=True)
 
 
 

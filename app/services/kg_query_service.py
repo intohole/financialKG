@@ -84,32 +84,32 @@ class KGQueryService:
                 )
             if entity_type:
                 conditions.append(Entity.type == entity_type)
-            
+
             if conditions:
                 stmt = stmt.where(and_(*conditions))
-            
+
             # 应用排序
             order_field = getattr(Entity, sort_by, Entity.created_at)
             if sort_order == "desc":
                 stmt = stmt.order_by(order_field.desc())
             else:
                 stmt = stmt.order_by(order_field)
-            
+
             # 计算总数
             count_stmt = select(func.count(Entity.id))
             if conditions:
                 count_stmt = count_stmt.where(and_(*conditions))
-            
+
             total_result = await self.session.execute(count_stmt)
             total = total_result.scalar()
-            
+
             # 分页查询
             offset = (page - 1) * page_size
             stmt = stmt.offset(offset).limit(page_size)
-            
+
             result = await self.session.execute(stmt)
             entities = result.scalars().all()
-            
+
             # 转换为前端友好的格式
             items = []
             for entity in entities:
@@ -135,7 +135,7 @@ class KGQueryService:
         except Exception as e:
             logger.error(f"获取实体列表失败: {e}")
             raise
-    
+
     async def get_entity_detail(self, entity_id: int) -> Optional[Dict[str, Any]]:
         """
         获取实体详细信息 - 包含关联数据
@@ -298,7 +298,7 @@ class KGQueryService:
         max_entities: int = 100
     ) -> Dict[str, Any]:
         """
-        获取实体的邻居网络 - 深度遍历
+        获取实体的邻居网络 - 正确的广度优先搜索实现
         
         Args:
             entity_id: 起始实体ID
@@ -314,7 +314,8 @@ class KGQueryService:
             }
         """
         try:
-            visited_entities = set()
+            # 使用字典记录每个实体的层级信息
+            entity_levels = {}
             visited_relations = set()
             nodes = []
             edges = []
@@ -324,21 +325,30 @@ class KGQueryService:
             if not start_entity:
                 return {"nodes": [], "edges": [], "metadata": {"total_nodes": 0, "total_edges": 0}}
             
-            # 广度优先搜索
+            # 初始化BFS - 正确实现广度优先搜索
             current_level = [entity_id]
-            visited_entities.add(entity_id)
+            entity_levels[entity_id] = 0  # 中心实体为第0层
             
-            for level in range(depth):
-                if len(visited_entities) >= max_entities:
+            logger.info(f"开始BFS遍历，起始实体: {entity_id}, 目标深度: {depth}, 最大实体数: {max_entities}")
+            
+            # 逐层遍历
+            for current_depth in range(depth):
+                logger.info(f"处理第 {current_depth + 1} 层，当前层实体数: {len(current_level)}")
+                
+                if len(entity_levels) >= max_entities:
+                    logger.info(f"达到最大实体数限制: {max_entities}")
                     break
                     
                 next_level = []
                 
+                # 处理当前层的每个实体
                 for current_entity_id in current_level:
                     # 获取当前实体的直接关系
                     relations = await self._get_entity_direct_relations(
                         current_entity_id, relation_types
                     )
+                    
+                    logger.info(f"实体 {current_entity_id} 找到 {len(relations)} 个直接关系")
                     
                     for relation in relations:
                         # 确定邻居实体ID
@@ -346,11 +356,6 @@ class KGQueryService:
                             neighbor_id = relation.object_id
                         else:
                             neighbor_id = relation.subject_id
-                        
-                        # 如果邻居实体未访问过，添加到下一层
-                        if neighbor_id not in visited_entities and len(visited_entities) < max_entities:
-                            visited_entities.add(neighbor_id)
-                            next_level.append(neighbor_id)
                         
                         # 添加关系边（如果未添加过）
                         if relation.id not in visited_relations:
@@ -363,12 +368,26 @@ class KGQueryService:
                                 "description": relation.description,
                                 "confidence": getattr(relation, 'confidence', None)
                             })
+                        
+                        # 如果邻居实体未访问过，添加到下一层
+                        if neighbor_id not in entity_levels:
+                            if len(entity_levels) < max_entities:
+                                entity_levels[neighbor_id] = current_depth + 1
+                                next_level.append(neighbor_id)
+                                logger.info(f"发现新邻居实体: {neighbor_id}, 层级: {current_depth + 1}")
                 
                 current_level = next_level
+                
+                # 如果下一层没有新实体，提前结束
+                if not current_level:
+                    logger.info(f"第 {current_depth + 1} 层没有新实体，提前结束")
+                    break
+                
+                logger.info(f"第 {current_depth + 1} 层处理完成，下一层实体数: {len(next_level)}")
             
-            # 获取所有访问过的实体详细信息
-            if visited_entities:
-                entities_stmt = select(Entity).where(Entity.id.in_(list(visited_entities)))
+            # 获取所有访问过的实体详细信息，包含层级信息
+            if entity_levels:
+                entities_stmt = select(Entity).where(Entity.id.in_(list(entity_levels.keys())))
                 entities_result = await self.session.execute(entities_stmt)
                 entities = entities_result.scalars().all()
                 
@@ -379,8 +398,15 @@ class KGQueryService:
                         "entity_type": entity.type,
                         "description": entity.description,
                         "confidence": getattr(entity, 'confidence', None),
-                        "is_center": entity.id == entity_id  # 标记中心节点
+                        "is_center": entity.id == entity_id,  # 标记中心节点
+                        "level": entity_levels.get(entity.id, 0),  # 添加层级信息
+                        "created_at": entity.created_at.isoformat() if entity.created_at else None  # 添加创建时间
                     })
+            
+            # 统计各层级实体数量
+            level_stats = {}
+            for level in entity_levels.values():
+                level_stats[level] = level_stats.get(level, 0) + 1
             
             return {
                 "nodes": nodes,
@@ -390,7 +416,8 @@ class KGQueryService:
                     "total_edges": len(edges),
                     "center_entity_id": entity_id,
                     "max_depth": depth,
-                    "visited_at_depth": len(visited_entities)
+                    "visited_entities": len(entity_levels),
+                    "level_distribution": level_stats  # 各层级实体分布
                 }
             }
             
@@ -452,31 +479,36 @@ class KGQueryService:
             
             result = await self.session.execute(stmt)
             news_list = result.scalars().all()
-            
-            items = []
-            for news in news_list:
-                items.append({
-                    "id": getattr(news, 'id', None),
-                    "title": getattr(news, 'title', None),
-                    "content": (getattr(news, 'content', '')[:300] + "..." if len(getattr(news, 'content', '')) > 300 else getattr(news, 'content', '')),
-                    "source": getattr(news, 'source', None),
-                    "published_at": news.publish_time.isoformat() if news.publish_time else None,
-                    "created_at": news.created_at.isoformat() if news.created_at else None,
-                    "updated_at": news.updated_at.isoformat() if news.updated_at else None
-                })
-            
-            return {
-                "items": items,
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": (total + page_size - 1) // page_size
-            }
-            
+
+            return await self._package_news_result(news_list, page, page_size, total)
+
         except Exception as e:
             logger.error(f"获取实体关联新闻失败: {e}")
             raise
-    
+
+    async def _package_news_result(self, news_list, page: int, page_size: int, total) -> dict[str, list[Any] | int | Any]:
+        items = []
+        for news in news_list:
+            items.append({
+                "id": getattr(news, 'id', None),
+                "title": getattr(news, 'title', None),
+                "content": (
+                    getattr(news, 'content', '')[:300] + "..." if len(getattr(news, 'content', '')) > 300 else getattr(
+                        news, 'content', '')),
+                "source": getattr(news, 'source', None),
+                "published_at": news.publish_time.isoformat() if news.publish_time else None,
+                "created_at": news.created_at.isoformat() if news.created_at else None,
+                "updated_at": news.updated_at.isoformat() if news.updated_at else None
+            })
+
+        return {
+            "items": items,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size
+        }
+
     # ==================== 多实体共同新闻查询功能 ====================
     
     async def get_common_news_for_entities(
@@ -601,8 +633,8 @@ class KGQueryService:
             if entity_type:
                 stmt = stmt.where(Entity.type == entity_type)
             
-            # 按置信度排序，限制数量
-            stmt = stmt.order_by(Entity.confidence.desc()).limit(limit)
+            # 按实体ID排序，限制数量
+            stmt = stmt.order_by(Entity.id.desc()).limit(limit)
             
             result = await self.session.execute(stmt)
             entities = result.scalars().all()
@@ -618,7 +650,7 @@ class KGQueryService:
                     "name": entity.name,
                     "entity_type": entity.type,
                     "description": entity.description,
-                    "confidence": getattr(entity, 'confidence', None),
+                    "confidence": getattr(entity, 'confidence', 0.8),  # 默认置信度0.8
                     "relevance_score": relevance_score,
                     "created_at": entity.created_at.isoformat() if entity.created_at else None
                 })
@@ -681,8 +713,6 @@ class KGQueryService:
         简化实现：基于实体置信度和在新闻中的出现频率
         """
         try:
-            # 这里可以实现更复杂的 relevance 计算逻辑
-            # 暂时返回实体的置信度作为相关性分数
             entity = await self.entity_repo.get_by_id(entity_id)
             return getattr(entity, 'confidence', 0.0) if entity else 0.0
         except:
@@ -742,53 +772,40 @@ class KGQueryService:
                 conditions.append(NewsEvent.publish_time >= start_date)
             if end_date:
                 conditions.append(NewsEvent.publish_time <= end_date)
-            
-            if conditions:
-                stmt = stmt.where(and_(*conditions))
-            
-            # 应用排序
-            order_field = getattr(NewsEvent, sort_by, NewsEvent.publish_time)
-            if sort_order == "desc":
-                stmt = stmt.order_by(order_field.desc())
-            else:
-                stmt = stmt.order_by(order_field)
-            
-            # 计算总数
-            count_stmt = select(func.count(NewsEvent.id))
-            if conditions:
-                count_stmt = count_stmt.where(and_(*conditions))
-            
-            total_result = await self.session.execute(count_stmt)
-            total = total_result.scalar()
-            
-            # 分页查询
-            offset = (page - 1) * page_size
-            stmt = stmt.offset(offset).limit(page_size)
-            
-            result = await self.session.execute(stmt)
-            news_list = result.scalars().all()
-            
+
+            news_list, total = await self._query_news_event(conditions, page, page_size, sort_by, sort_order, stmt)
+
             # 转换为前端友好的格式
-            items = []
-            for news in news_list:
-                items.append({
-                    "id": getattr(news, 'id', None),
-                    "title": getattr(news, 'title', None),
-                    "content": (getattr(news, 'content', '')[:300] + "..." if len(getattr(news, 'content', '')) > 300 else getattr(news, 'content', '')),
-                    "source": getattr(news, 'source', None),
-                    "published_at": news.publish_time.isoformat() if news.publish_time else None,
-                    "created_at": news.created_at.isoformat() if news.created_at else None,
-                    "updated_at": news.updated_at.isoformat() if news.updated_at else None
-                })
-            
-            return {
-                "items": items,
-                "total": total,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": (total + page_size - 1) // page_size
-            }
-            
+            return await self._package_news_result(news_list, page, page_size, total)
+
         except Exception as e:
             logger.error(f"获取新闻列表失败: {e}")
             raise
+
+    async def _query_news_event(self, conditions: list[Any], page: int, page_size: int, sort_by: str, sort_order: str,
+                                stmt) -> tuple[Any, Any]:
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+
+        # 应用排序
+        order_field = getattr(NewsEvent, sort_by, NewsEvent.publish_time)
+        if sort_order == "desc":
+            stmt = stmt.order_by(order_field.desc())
+        else:
+            stmt = stmt.order_by(order_field)
+
+        # 计算总数
+        count_stmt = select(func.count(NewsEvent.id))
+        if conditions:
+            count_stmt = count_stmt.where(and_(*conditions))
+
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar()
+
+        # 分页查询
+        offset = (page - 1) * page_size
+        stmt = stmt.offset(offset).limit(page_size)
+
+        result = await self.session.execute(stmt)
+        news_list = result.scalars().all()
+        return news_list, total
